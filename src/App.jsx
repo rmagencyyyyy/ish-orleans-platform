@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   Link,
   Navigate,
@@ -10,7 +10,6 @@ import {
   useParams,
 } from 'react-router-dom'
 import {
-  addRegistration,
   addClass,
   addEvent,
   addEventRegistration,
@@ -24,7 +23,6 @@ import {
   deleteEvent,
   deleteGalleryImage,
   deleteAttendance,
-  deleteRegistration,
   deleteClass,
   deleteStudentGrade,
   deleteStudentNote,
@@ -36,9 +34,7 @@ import {
   getEventRegistrationsByEventId,
   getGalleryImages,
   getGlobalSchedule,
-  getPreGroups,
-  getRegistrations,
-  getSettings,
+  getRegistrations as getLocalRegistrations,
   getTeacherSchedule,
   getStudentNotesByStudentId,
   getStudentGradesByClassId,
@@ -46,10 +42,8 @@ import {
   getStudentGradesByTeacherId,
   getUsers,
   getClassesWithoutSchedule,
-  isRegistrationOpen,
   moveStudentToClass,
   removeStudentFromClass,
-  setRegistrationOpen,
   manualCreateClassFromStudents,
   updateClass,
   updateEvent,
@@ -57,10 +51,19 @@ import {
   updateStudentGrade,
   updateStudentNote,
   updateUser,
-  updateRegistration,
   updateClassSchedule,
-  updateRegistrationStatus,
 } from './data/storage'
+import {
+  addRegistration,
+  deleteRegistration,
+  getPreGroups,
+  getRegistrations,
+  getSettings,
+  isRegistrationOpen,
+  setRegistrationOpen,
+  updateRegistration,
+  updateRegistrationStatus,
+} from './services/dataProvider'
 import Footer from './components/Footer'
 import Header from './components/Header'
 import { getSubjectColor, subjectColors } from './config/subjectColors'
@@ -485,22 +488,62 @@ function Formations() {
 }
 
 function Inscription() {
-  const [registrationOpen] = useState(() => isRegistrationOpen())
+  const [registrationOpen, setRegistrationOpenState] = useState(true)
+  const [isLoadingSettings, setIsLoadingSettings] = useState(true)
   const [isCertified, setIsCertified] = useState(false)
   const [successMessage, setSuccessMessage] = useState('')
+  const [errorMessage, setErrorMessage] = useState('')
 
-  function handleSubmit(event) {
+  useEffect(() => {
+    let isMounted = true
+    isRegistrationOpen()
+      .then((isOpen) => {
+        if (isMounted) {
+          setRegistrationOpenState(isOpen)
+        }
+      })
+      .catch(() => {
+        if (isMounted) {
+          setErrorMessage('Impossible de vérifier le statut des inscriptions.')
+        }
+      })
+      .finally(() => {
+        if (isMounted) {
+          setIsLoadingSettings(false)
+        }
+      })
+
+    return () => {
+      isMounted = false
+    }
+  }, [])
+
+  async function handleSubmit(event) {
     event.preventDefault()
 
     if (!registrationOpen) {
       return
     }
 
-    const registration = addRegistration(buildRegistrationFromForm(event.currentTarget))
-    event.currentTarget.reset()
-    setIsCertified(false)
-    setSuccessMessage(
-      `Votre inscription a bien été enregistrée avec le numéro ${registration.id}.`,
+    setErrorMessage('')
+
+    try {
+      const registration = await addRegistration(buildRegistrationFromForm(event.currentTarget))
+      event.currentTarget.reset()
+      setIsCertified(false)
+      setSuccessMessage(
+        `Votre inscription a bien été enregistrée avec le numéro ${registration.id}.`,
+      )
+    } catch {
+      setErrorMessage('Une erreur est survenue pendant l’enregistrement de votre inscription.')
+    }
+  }
+
+  if (isLoadingSettings) {
+    return (
+      <section className="section inscription-section" id="inscription">
+        <div className="registration-closed-message">Chargement du formulaire...</div>
+      </section>
     )
   }
 
@@ -539,6 +582,11 @@ function Inscription() {
       {successMessage ? (
         <div className="success-message" role="status">
           {successMessage}
+        </div>
+      ) : null}
+      {errorMessage ? (
+        <div className="login-error" role="alert">
+          {errorMessage}
         </div>
       ) : null}
 
@@ -2653,7 +2701,7 @@ function studentsForClassById(classId) {
   const classItem = getClasses().find((currentClass) => currentClass.id === classId)
   return (classItem?.students || [])
     .map((studentId) =>
-      getRegistrations().find((registration) => registration.id === studentId),
+      getLocalRegistrations().find((registration) => registration.id === studentId),
     )
     .filter(Boolean)
 }
@@ -3471,7 +3519,7 @@ function TeacherStudentDetails() {
   const studentClass = assignedClasses.find((classItem) =>
     (classItem.students || []).includes(id),
   )
-  const student = getRegistrations().find((registration) => registration.id === id)
+  const student = getLocalRegistrations().find((registration) => registration.id === id)
   const [noteForm, setNoteForm] = useState(emptyNoteForm)
   const [attendanceForm, setAttendanceForm] = useState(emptyAttendanceForm)
   const [notes, setNotes] = useState(() => getStudentNotesByStudentId(id))
@@ -3652,9 +3700,33 @@ function TeacherGradesPage() {
 }
 
 function DashboardPage() {
-  const [registrations] = useState(() => getRegistrations())
+  const [registrations, setRegistrations] = useState(() => getLocalRegistrations())
   const [classes] = useState(() => getClasses())
-  const [settings, setSettings] = useState(() => getSettings())
+  const [settings, setSettings] = useState(() => ({
+    schoolYear: '2025 / 2026',
+    registrationOpen: true,
+  }))
+  const [dashboardError, setDashboardError] = useState('')
+
+  useEffect(() => {
+    let isMounted = true
+    Promise.all([getRegistrations(), getSettings()])
+      .then(([nextRegistrations, nextSettings]) => {
+        if (isMounted) {
+          setRegistrations(nextRegistrations)
+          setSettings(nextSettings)
+        }
+      })
+      .catch(() => {
+        if (isMounted) {
+          setDashboardError('Certaines données du tableau de bord n’ont pas pu être chargées.')
+        }
+      })
+
+    return () => {
+      isMounted = false
+    }
+  }, [])
   const pendingRegistrations = registrations.filter(
     (registration) => registration.status === 'En attente',
   ).length
@@ -3665,8 +3737,13 @@ function DashboardPage() {
     (registration) => registration.status === 'Refusée',
   ).length
 
-  function handleRegistrationToggle() {
-    setSettings(setRegistrationOpen(!settings.registrationOpen))
+  async function handleRegistrationToggle() {
+    try {
+      setSettings(await setRegistrationOpen(!settings.registrationOpen))
+      setDashboardError('')
+    } catch {
+      setDashboardError('Impossible de modifier le statut des inscriptions.')
+    }
   }
 
   return (
@@ -3675,6 +3752,7 @@ function DashboardPage() {
         title="Tableau de bord"
         description="Vue d’ensemble des inscriptions, classes et paramètres de l’institut."
       />
+      {dashboardError ? <div className="login-error">{dashboardError}</div> : null}
       <div className="admin-card-grid">
         <article className="admin-card">
           <span>Total inscriptions</span>
@@ -3977,7 +4055,7 @@ function AdminTeacherSchedulePage() {
 }
 
 function AdminInscriptionsPage() {
-  const [registrations, setRegistrations] = useState(() => getRegistrations())
+  const [registrations, setRegistrations] = useState(() => getLocalRegistrations())
   const [classes, setClasses] = useState(() => getClasses())
   const [searchQuery, setSearchQuery] = useState('')
   const [formationFilter, setFormationFilter] = useState('Toutes')
@@ -3988,6 +4066,7 @@ function AdminInscriptionsPage() {
   const [editingRegistration, setEditingRegistration] = useState(null)
   const [quickAssignRegistrationId, setQuickAssignRegistrationId] = useState('')
   const [pageMessage, setPageMessage] = useState('')
+  const [pageError, setPageError] = useState('')
   const teachers = getUsers().filter((user) => user.role === 'teacher' && user.isActive)
   const formationOptions = [
     'Toutes',
@@ -4016,19 +4095,32 @@ function AdminInscriptionsPage() {
     return matchesSearch && matchesFormation && matchesStatus && matchesAssignment
   })
 
-  function refreshRegistrations() {
-    setRegistrations(getRegistrations())
+  useEffect(() => {
+    refreshRegistrations()
+  }, [])
+
+  async function refreshRegistrations() {
+    try {
+      setRegistrations(await getRegistrations())
+      setPageError('')
+    } catch {
+      setPageError('Impossible de charger les inscriptions.')
+    }
     setClasses(getClasses())
   }
 
-  function handleStatusChange(id, status) {
-    updateRegistrationStatus(id, status)
-    refreshRegistrations()
-    setPageMessage(status === 'Validée' ? 'Inscription validée.' : '')
-    setQuickAssignRegistrationId(status === 'Validée' ? id : '')
-    setSelectedRegistration((current) =>
-      current?.id === id ? { ...current, status } : current,
-    )
+  async function handleStatusChange(id, status) {
+    try {
+      const updated = await updateRegistrationStatus(id, status)
+      await refreshRegistrations()
+      setPageMessage(status === 'Validée' ? 'Inscription validée.' : '')
+      setQuickAssignRegistrationId(status === 'Validée' ? id : '')
+      setSelectedRegistration((current) =>
+        current?.id === id ? updated || { ...current, status } : current,
+      )
+    } catch {
+      setPageError('Impossible de modifier le statut de l’inscription.')
+    }
   }
 
   function handleDetailStatusChange(id, status) {
@@ -4038,14 +4130,18 @@ function AdminInscriptionsPage() {
     }
   }
 
-  function handleDelete(id) {
+  async function handleDelete(id) {
     if (!confirm('Voulez-vous vraiment supprimer cette inscription ?')) {
       return
     }
 
-    deleteRegistration(id)
-    refreshRegistrations()
-    setSelectedRegistration(null)
+    try {
+      await deleteRegistration(id)
+      await refreshRegistrations()
+      setSelectedRegistration(null)
+    } catch {
+      setPageError('Impossible de supprimer cette inscription.')
+    }
   }
 
   function openAssignment(registration) {
@@ -4089,23 +4185,27 @@ function AdminInscriptionsPage() {
     return handleCourseAssignment(registration.id, course.id, newClass.id)
   }
 
-  function handleRegistrationUpdate(registrationId, payload, coursesToUnassign = []) {
+  async function handleRegistrationUpdate(registrationId, payload, coursesToUnassign = []) {
     coursesToUnassign.forEach((course) => {
       if (course.assignedClassId) {
         removeStudentFromClass(registrationId, course.assignedClassId)
       }
     })
 
-    const updated = updateRegistration(registrationId, payload)
-    refreshRegistrations()
-    setSelectedRegistration((current) =>
-      current?.id === registrationId ? updated : current,
-    )
-    setAssignmentRegistration((current) =>
-      current?.id === registrationId ? updated : current,
-    )
-    setEditingRegistration(null)
-    setPageMessage('L’inscription a bien été modifiée.')
+    try {
+      const updated = await updateRegistration(registrationId, payload)
+      await refreshRegistrations()
+      setSelectedRegistration((current) =>
+        current?.id === registrationId ? updated : current,
+      )
+      setAssignmentRegistration((current) =>
+        current?.id === registrationId ? updated : current,
+      )
+      setEditingRegistration(null)
+      setPageMessage('L’inscription a bien été modifiée.')
+    } catch {
+      setPageError('Impossible de modifier cette inscription.')
+    }
   }
 
   return (
@@ -4177,6 +4277,11 @@ function AdminInscriptionsPage() {
           {pageMessage ? (
             <div className="success-message assignment-message" role="status">
               {pageMessage}
+            </div>
+          ) : null}
+          {pageError ? (
+            <div className="login-error assignment-message" role="alert">
+              {pageError}
             </div>
           ) : null}
 
@@ -4324,7 +4429,7 @@ function AdminInscriptionsPage() {
 
 function AdminClassesPage() {
   const [classes, setClasses] = useState(() => getClasses())
-  const [registrations] = useState(() => getRegistrations())
+  const [registrations] = useState(() => getLocalRegistrations())
   const teachers = getUsers().filter((user) => user.role === 'teacher')
   const [classForm, setClassForm] = useState(emptyClassForm)
   const [editingClassId, setEditingClassId] = useState(null)
@@ -4760,17 +4865,27 @@ function AdminClassesPage() {
 }
 
 function AdminGroupsPage() {
-  const [groups, setGroups] = useState(() => getPreGroups())
+  const [groups, setGroups] = useState([])
   const [maxStudents, setMaxStudents] = useState('15')
   const [search, setSearch] = useState('')
   const [message, setMessage] = useState('')
+  const [error, setError] = useState('')
   const [selectedStudents, setSelectedStudents] = useState({})
   const [manualClassName, setManualClassName] = useState('')
   const [manualTeacherId, setManualTeacherId] = useState('')
   const teachers = getUsers().filter((user) => user.role === 'teacher')
 
-  function refreshGroups() {
-    setGroups(getPreGroups())
+  useEffect(() => {
+    refreshGroups()
+  }, [])
+
+  async function refreshGroups() {
+    try {
+      setGroups(await getPreGroups())
+      setError('')
+    } catch {
+      setError('Impossible de charger les groupes d’inscription.')
+    }
   }
 
   function handleAutoCreate() {
@@ -4843,6 +4958,7 @@ function AdminGroupsPage() {
         title="Groupes d’inscription"
         description="Pré-groupement automatique selon matière, niveau, public, disponibilité et créneau."
       />
+      {error ? <div className="login-error assignment-message">{error}</div> : null}
       <section className="admin-panel groups-toolbar">
         <label className="form-field" htmlFor="group-max">
           <span>Maximum par classe</span>
@@ -5662,17 +5778,45 @@ function AdminUsersPage() {
 }
 
 function AdminSettingsPage() {
-  const [settings, setSettings] = useState(() => getSettings())
+  const [settings, setSettings] = useState(() => ({
+    schoolYear: '2025 / 2026',
+    registrationOpen: true,
+  }))
   const [saveMessage, setSaveMessage] = useState('')
+  const [errorMessage, setErrorMessage] = useState('')
 
-  function handleRegistrationToggle(isOpen) {
-    const nextSettings = setRegistrationOpen(isOpen)
-    setSettings(nextSettings)
-    setSaveMessage(
-      isOpen
-        ? 'Les inscriptions sont maintenant ouvertes.'
-        : 'Les inscriptions sont maintenant fermées.',
-    )
+  useEffect(() => {
+    let isMounted = true
+    getSettings()
+      .then((nextSettings) => {
+        if (isMounted) {
+          setSettings(nextSettings)
+        }
+      })
+      .catch(() => {
+        if (isMounted) {
+          setErrorMessage('Impossible de charger les paramètres.')
+        }
+      })
+
+    return () => {
+      isMounted = false
+    }
+  }, [])
+
+  async function handleRegistrationToggle(isOpen) {
+    try {
+      const nextSettings = await setRegistrationOpen(isOpen)
+      setSettings(nextSettings)
+      setSaveMessage(
+        isOpen
+          ? 'Les inscriptions sont maintenant ouvertes.'
+          : 'Les inscriptions sont maintenant fermées.',
+      )
+      setErrorMessage('')
+    } catch {
+      setErrorMessage('Impossible de modifier le statut des inscriptions.')
+    }
   }
 
   return (
@@ -5681,6 +5825,7 @@ function AdminSettingsPage() {
         title="Paramètres"
         description="Configurez les informations générales, l’année scolaire et les options du site."
       />
+      {errorMessage ? <div className="login-error assignment-message">{errorMessage}</div> : null}
       <section className="settings-panel admin-panel">
         <div className="settings-panel-header">
           <div>
