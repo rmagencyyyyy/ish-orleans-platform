@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   addEventRegistration,
@@ -6,7 +6,7 @@ import {
   getEventRegistrationsByEventId,
   getGalleryImages,
 } from '../data/storage'
-import { addRegistration, isRegistrationOpen } from '../services/dataProvider'
+import { sendRegistrationRequest } from '../services/registrationRequestApi'
 import Footer from '../components/Footer'
 import Header from '../components/Header'
 
@@ -49,246 +49,7 @@ const formations = [
   },
 ]
 
-const personalFields = [
-  'Nom',
-  'Prénom',
-  'Date de naissance',
-  'Âge',
-  'Lieu de naissance',
-  'Nationalité',
-  'Responsable légal si mineur',
-  'Lien de parenté',
-  'Adresse',
-  'Code postal',
-  'Ville',
-  'Téléphone portable 1',
-  'Portable 2',
-  'Email',
-]
-
-const courseGroups = [
-  {
-    title: 'Langue Arabe',
-    options: [
-      'Adultes 2h/semaine',
-      'Adultes intensif 3h/semaine',
-      'Enfants 2h > 6 ans Arabe & Éveil Religieux',
-      'Enfants 3h > 10 ans Arabe & Éveil Religieux',
-    ],
-    fields: ['Niveau', 'Planning jours / heure'],
-  },
-  {
-    title: 'Coran / Tajwid',
-    options: ['Adultes', 'Ados / Enfants'],
-    fields: ['Niveau', 'Planning jours / heure'],
-  },
-  {
-    title: 'Théologie musulmane',
-    options: [
-      'Adultes',
-      'Ados',
-      'Arabe',
-      'Français',
-      'Initiation à l’Islam pour les convertis',
-    ],
-    fields: ['Planning jours / heure'],
-  },
-  {
-    title: 'Initiation à l’Islam',
-    options: ['Convertis', 'Adultes', 'Ados'],
-    fields: ['Planning jours / heure'],
-  },
-  {
-    title: 'Français',
-    options: ['Adultes', 'Ados / Enfants'],
-    fields: ['Niveau', 'Planning jours / heure'],
-  },
-  {
-    title: 'Anglais',
-    options: ['Adultes', 'Ados / Enfants'],
-    fields: ['Niveau', 'Planning jours / heure'],
-  },
-  {
-    title: 'Soutien scolaire',
-    options: ['Primaire', 'Collège', 'Lycée'],
-    fields: ['Planning jours / heure'],
-  },
-]
-
-const levelOptions = ['Débutant', 'Intermédiaire', 'Avancé']
-const publicTypeOptions = ['Enfant', 'Ado', 'Adulte']
-const availabilityOptions = ['Semaine', 'Week-end', 'Les deux']
-const dayOptions = [
-  'Lundi',
-  'Mardi',
-  'Mercredi',
-  'Jeudi',
-  'Vendredi',
-  'Samedi',
-  'Dimanche',
-]
-const preferredTimeOptions = ['Matin', 'Après-midi', 'Soir', 'Peu importe']
-const requiredDocuments = [
-  'Fiche d’inscription ISH complétée, datée et signée + 1 photo à coller',
-  'Règlement intérieur signé',
-  'Copie de certificat d’assurance scolaire',
-  'Frais d’inscription par chèque à l’ordre de “ISH Orléans” ou par virement',
-]
-
 const galleryCategories = ['Institut', 'Événement', 'Cours', 'Activité', 'Autre']
-
-function inputType(label) {
-  if (label === 'Date de naissance' || label === 'Date') {
-    return 'date'
-  }
-
-  if (label === 'Âge') {
-    return 'number'
-  }
-
-  if (label === 'Email') {
-    return 'email'
-  }
-
-  if (label.toLowerCase().includes('téléphone') || label.includes('Portable')) {
-    return 'tel'
-  }
-
-  return 'text'
-}
-
-function slugify(label) {
-  return label
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/(^-|-$)/g, '')
-}
-
-function fieldName(label, idPrefix = '') {
-  return slugify(`${idPrefix} ${label}`)
-}
-
-function TextField({ label, className = '', idPrefix = '' }) {
-  const id = fieldName(label, idPrefix)
-
-  return (
-    <label className={`form-field ${className}`} htmlFor={id}>
-      <span>{label}</span>
-      <input id={id} name={id} type={inputType(label)} />
-    </label>
-  )
-}
-
-function CheckboxField({ label, name }) {
-  const id = `${name}-${slugify(label)}`
-
-  return (
-    <label className="checkbox-field" htmlFor={id}>
-      <input id={id} name={name} type="checkbox" value={label} />
-      <span>{label}</span>
-    </label>
-  )
-}
-
-function SelectField({ idPrefix, label, options }) {
-  const id = fieldName(label, idPrefix)
-
-  return (
-    <label className="form-field" htmlFor={id}>
-      <span>{label}</span>
-      <select id={id} name={id}>
-        {options.map((option) => (
-          <option key={option} value={option}>
-            {option}
-          </option>
-        ))}
-      </select>
-    </label>
-  )
-}
-
-function valueFromForm(formData, label, idPrefix = '') {
-  return String(formData.get(fieldName(label, idPrefix)) || '').trim()
-}
-
-function buildRegistrationFromForm(form) {
-  const formData = new FormData(form)
-  const photo = formData.get('photo')
-  const coursesWanted = courseGroups
-    .map((group) => {
-      const subject = group.title
-      const level = valueFromForm(formData, 'Niveau', subject) || 'Débutant'
-      const publicType = valueFromForm(formData, 'Public', subject) || 'Adulte'
-      const availabilityType =
-        valueFromForm(formData, 'Disponibilité principale', subject) || 'Les deux'
-      const preferredTime =
-        valueFromForm(formData, 'Créneau souhaité', subject) || 'Peu importe'
-      const availableDays = formData.getAll(fieldName('Jours disponibles', subject))
-      const selectedOptions = formData.getAll(slugify(subject))
-      const hasDetails =
-        selectedOptions.length > 0 ||
-        availableDays.length > 0 ||
-        valueFromForm(formData, 'Planning jours / heure', subject)
-
-      if (!hasDetails) {
-        return null
-      }
-
-      return {
-        id: `${slugify(subject)}-${Date.now()}-${Math.random()
-          .toString(16)
-          .slice(2)}`,
-        subject,
-        level,
-        publicType,
-        availabilityType,
-        availableDays,
-        preferredTime,
-        groupKey: [subject, level, publicType, availabilityType, preferredTime].join(
-          '|',
-        ),
-        options: selectedOptions,
-        planning: valueFromForm(formData, 'Planning jours / heure', subject),
-        assignmentStatus: 'Pré-groupé',
-        assignedClassId: '',
-        assignedClassName: '',
-      }
-    })
-    .filter(Boolean)
-
-  return {
-    schoolYear: '2025 / 2026',
-    registrationType: formData.getAll('inscription-type'),
-    photoName: photo && photo.name ? photo.name : '',
-    personalInformation: personalFields.reduce((fields, field) => {
-      return {
-        ...fields,
-        [field]: valueFromForm(formData, field),
-      }
-    }, {}),
-    selectedCourses: courseGroups.map((group) => {
-      return {
-        title: group.title,
-        options: formData.getAll(slugify(group.title)),
-        details: group.fields.reduce((fields, field) => {
-          return {
-            ...fields,
-            [field]: valueFromForm(formData, field, group.title),
-          }
-        }, {}),
-      }
-    }),
-    coursesWanted,
-    validation: {
-      certified: formData.get('certification') === 'on',
-      location: valueFromForm(formData, 'Fait à'),
-      date: valueFromForm(formData, 'Date'),
-      signature: String(formData.get('signature') || '').trim(),
-    },
-  }
-}
 
 function Formations() {
   return (
@@ -321,81 +82,43 @@ function Formations() {
 }
 
 function Inscription() {
-  const [registrationOpen, setRegistrationOpenState] = useState(true)
-  const [isLoadingSettings, setIsLoadingSettings] = useState(true)
-  const [isCertified, setIsCertified] = useState(false)
+  const [formValues, setFormValues] = useState({
+    email: '',
+    firstName: '',
+    lastName: '',
+  })
+  const [isSending, setIsSending] = useState(false)
   const [successMessage, setSuccessMessage] = useState('')
   const [errorMessage, setErrorMessage] = useState('')
 
-  useEffect(() => {
-    let isMounted = true
-    isRegistrationOpen()
-      .then((isOpen) => {
-        if (isMounted) {
-          setRegistrationOpenState(isOpen)
-        }
-      })
-      .catch(() => {
-        if (isMounted) {
-          setErrorMessage('Impossible de vérifier le statut des inscriptions.')
-        }
-      })
-      .finally(() => {
-        if (isMounted) {
-          setIsLoadingSettings(false)
-        }
-      })
-
-    return () => {
-      isMounted = false
-    }
-  }, [])
+  function handleChange(event) {
+    const { name, value } = event.currentTarget
+    setFormValues((currentValues) => ({
+      ...currentValues,
+      [name]: value,
+    }))
+  }
 
   async function handleSubmit(event) {
     event.preventDefault()
 
-    if (!registrationOpen) {
-      return
-    }
-
+    setIsSending(true)
     setErrorMessage('')
+    setSuccessMessage('')
 
     try {
-      const registration = await addRegistration(buildRegistrationFromForm(event.currentTarget))
-      event.currentTarget.reset()
-      setIsCertified(false)
-      setSuccessMessage(
-        `Votre inscription a bien été enregistrée avec le numéro ${registration.id}.`,
-      )
-    } catch {
-      setErrorMessage('Une erreur est survenue pendant l’enregistrement de votre inscription.')
+      await sendRegistrationRequest({
+        email: formValues.email.trim(),
+        firstName: formValues.firstName.trim(),
+        lastName: formValues.lastName.trim(),
+      })
+      setFormValues({ email: '', firstName: '', lastName: '' })
+      setSuccessMessage('Votre demande a bien été envoyée.')
+    } catch (error) {
+      setErrorMessage(error.message || 'Une erreur est survenue pendant l’envoi.')
+    } finally {
+      setIsSending(false)
     }
-  }
-
-  if (isLoadingSettings) {
-    return (
-      <section className="section inscription-section" id="inscription">
-        <div className="registration-closed-message">Chargement du formulaire...</div>
-      </section>
-    )
-  }
-
-  if (!registrationOpen) {
-    return (
-      <section className="section inscription-section" id="inscription">
-        <div className="inscription-heading">
-          <div>
-            <div className="section-kicker">Inscription</div>
-            <h2>Fiche d’inscription</h2>
-            <p>Année scolaire 2025 / 2026</p>
-          </div>
-        </div>
-        <div className="registration-closed-message">
-          Les inscriptions sont actuellement fermées. Merci de revenir plus tard
-          ou de contacter l’administration.
-        </div>
-      </section>
-    )
   }
 
   return (
@@ -403,12 +126,11 @@ function Inscription() {
       <div className="inscription-heading">
         <div>
           <div className="section-kicker">Inscription</div>
-          <h2>Fiche d’inscription</h2>
-          <p>Année scolaire 2025 / 2026</p>
+          <h2>Demande de contact</h2>
         </div>
         <p>
-          Remplissez les informations ci-dessous pour préparer votre dossier
-          d’inscription auprès de l’ISH Orléans.
+          Laissez vos coordonnées et l’équipe ISH Orléans vous recontactera
+          pour la suite.
         </p>
       </div>
 
@@ -423,145 +145,54 @@ function Inscription() {
         </div>
       ) : null}
 
-      <form className="registration-form" onSubmit={handleSubmit}>
-        <div className="paper-header">
-          <div className="status-options">
-            <CheckboxField label="Première inscription" name="inscription-type" />
-            <CheckboxField label="Ré-inscription" name="inscription-type" />
-          </div>
+      <form
+        className="registration-form registration-request-card"
+        onSubmit={handleSubmit}
+      >
+        <label className="form-field" htmlFor="registration-email">
+          <span>Email</span>
+          <input
+            autoComplete="email"
+            id="registration-email"
+            name="email"
+            onChange={handleChange}
+            required
+            type="email"
+            value={formValues.email}
+          />
+        </label>
+        <label className="form-field" htmlFor="registration-first-name">
+          <span>Prénom</span>
+          <input
+            autoComplete="given-name"
+            id="registration-first-name"
+            name="firstName"
+            onChange={handleChange}
+            required
+            type="text"
+            value={formValues.firstName}
+          />
+        </label>
+        <label className="form-field" htmlFor="registration-last-name">
+          <span>Nom</span>
+          <input
+            autoComplete="family-name"
+            id="registration-last-name"
+            name="lastName"
+            onChange={handleChange}
+            required
+            type="text"
+            value={formValues.lastName}
+          />
+        </label>
 
-          <label className="photo-upload" htmlFor="photo">
-            <span>Téléversement d’une photo</span>
-            <input id="photo" name="photo" type="file" accept="image/*" />
-          </label>
-        </div>
-
-        <fieldset className="form-block">
-          <legend>1. Informations personnelles</legend>
-          <div className="field-grid">
-            {personalFields.map((field) => (
-              <TextField
-                className={field === 'Adresse' ? 'field-wide' : ''}
-                key={field}
-                label={field}
-              />
-            ))}
-          </div>
-          <p className="form-note">
-            Numéro à renseigner en priorité pour la gestion des groupes de
-            communication en cas de poursuite des cours à distance.
-          </p>
-        </fieldset>
-
-        <fieldset className="form-block">
-          <legend>2. Formation : Matière / Cours</legend>
-          <div className="course-grid">
-            {courseGroups.map((group) => (
-              <section className="course-card" key={group.title}>
-                <h3>{group.title}</h3>
-                <div className="checkbox-list">
-                  {group.options.map((option) => (
-                    <CheckboxField
-                      key={option}
-                      label={option}
-                      name={slugify(group.title)}
-                    />
-                  ))}
-                </div>
-                <div className="course-fields">
-                  <SelectField
-                    idPrefix={group.title}
-                    label="Niveau"
-                    options={levelOptions}
-                  />
-                  <SelectField
-                    idPrefix={group.title}
-                    label="Public"
-                    options={publicTypeOptions}
-                  />
-                  <SelectField
-                    idPrefix={group.title}
-                    label="Disponibilité principale"
-                    options={availabilityOptions}
-                  />
-                  <SelectField
-                    idPrefix={group.title}
-                    label="Créneau souhaité"
-                    options={preferredTimeOptions}
-                  />
-                  <div className="course-day-options">
-                    <span>Jours disponibles</span>
-                    <div>
-                      {dayOptions.map((day) => (
-                        <CheckboxField
-                          key={day}
-                          label={day}
-                          name={fieldName('Jours disponibles', group.title)}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                  {group.fields.map((field) => (
-                    field === 'Niveau' ? null : (
-                      <TextField key={field} idPrefix={group.title} label={field} />
-                    )
-                  ))}
-                </div>
-              </section>
-            ))}
-          </div>
-          <p className="form-note">
-            Niveau sous réserve de validation et après test oral par l’équipe
-            pédagogique pour toute nouvelle inscription.
-          </p>
-        </fieldset>
-
-        <fieldset className="form-block">
-          <legend>3. Pièces à fournir</legend>
-          <ul className="document-list">
-            {requiredDocuments.map((document) => (
-              <li key={document}>{document}</li>
-            ))}
-          </ul>
-          <p className="warning-note">
-            NB : Aucun remboursement possible en cas de désistement ou abandon.
-          </p>
-        </fieldset>
-
-        <fieldset className="form-block validation-block">
-          <legend>4. Validation</legend>
-          <label className="checkbox-field required-check" htmlFor="certification">
-            <input
-              checked={isCertified}
-              id="certification"
-              name="certification"
-              onChange={(event) => setIsCertified(event.currentTarget.checked)}
-              required
-              type="checkbox"
-            />
-            <span>
-              Je certifie que tous les renseignements sont exacts et porte
-              l’entière responsabilité en cas de falsification.
-            </span>
-          </label>
-
-          <div className="validation-grid">
-            <TextField label="Fait à" />
-            <TextField label="Date" />
-            <label className="form-field signature-field" htmlFor="signature">
-              <span>Signature numérique</span>
-              <textarea id="signature" name="signature" rows="4" />
-            </label>
-          </div>
-
-          <button
-            className="btn btn-primary submit-btn"
-            disabled={!isCertified}
-            type="submit"
-          >
-            Envoyer mon inscription
-          </button>
-        </fieldset>
+        <button
+          className="btn btn-primary submit-btn"
+          disabled={isSending}
+          type="submit"
+        >
+          {isSending ? 'Envoi...' : 'Envoyer'}
+        </button>
       </form>
     </section>
   )

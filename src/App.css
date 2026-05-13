@@ -1276,6 +1276,15 @@
   box-shadow: var(--shadow-strong);
 }
 
+.registration-request-card {
+  max-width: 560px;
+  margin-inline: auto;
+}
+
+.registration-request-card .submit-btn {
+  width: 100%;
+}
+
 .success-message,
 .registration-closed-message {
   max-width: 1180px;
