@@ -641,7 +641,12 @@ function eventIsFull(eventItem) {
 }
 
 function EventsPublicPage() {
-  const [events, setEvents] = useState(() => getEvents())
+  const getPublishedContent = () => {
+    return getEvents().filter((eventItem) => {
+      return eventItem.contentType !== 'Actualité' || eventItem.status === 'Publiée'
+    })
+  }
+  const [events, setEvents] = useState(() => getPublishedContent())
   const [selectedEvent, setSelectedEvent] = useState(null)
   const [eventForm, setEventForm] = useState({
     firstName: '',
@@ -652,7 +657,7 @@ function EventsPublicPage() {
   const [eventError, setEventError] = useState('')
 
   function refreshEvents() {
-    setEvents(getEvents())
+    setEvents(getPublishedContent())
   }
 
   function handleEventRegistrationSubmit(event) {
@@ -692,7 +697,7 @@ function EventsPublicPage() {
       <div className="faq-heading">
         <p className="section-kicker">Actualités</p>
         <h1>Actualités & événements</h1>
-        <p>Découvrez les prochains événements organisés par l’ISH Orléans.</p>
+        <p>Découvrez les actualités et prochains événements organisés par l’ISH Orléans.</p>
       </div>
 
       {eventMessage ? (
@@ -703,62 +708,76 @@ function EventsPublicPage() {
 
       {events.length === 0 ? (
         <div className="events-empty">
-          Aucun événement n’est publié pour le moment.
+          Aucune actualité n’est publiée pour le moment.
         </div>
       ) : (
         <div className="event-card-grid">
           {events.map((eventItem) => {
+            const isNewsItem = eventItem.contentType === 'Actualité'
             const remaining = eventRemainingPlaces(eventItem)
-            const isClosed = eventItem.status !== 'Ouvert'
-            const isFull = eventIsFull(eventItem)
+            const isClosed = !isNewsItem && eventItem.status !== 'Ouvert'
+            const isFull = !isNewsItem && eventIsFull(eventItem)
 
             return (
               <article className="event-card" key={eventItem.id}>
                 <span className={`status-pill ${isClosed ? 'refusee' : 'validee'}`}>
-                  {eventItem.status}
+                  {isNewsItem ? 'Actualité' : eventItem.status}
                 </span>
+                {eventItem.imageUrl ? (
+                  <img
+                    alt={eventItem.title}
+                    className="event-card-image"
+                    src={eventItem.imageUrl}
+                  />
+                ) : null}
                 <h2>{eventItem.title}</h2>
                 <p>{eventItem.description}</p>
                 <dl>
                   <div>
-                    <dt>Date</dt>
-                    <dd>{formatDate(eventItem.date)}</dd>
+                    <dt>{isNewsItem ? 'Publication' : 'Date'}</dt>
+                    <dd>{formatDate(isNewsItem ? eventItem.publishedAt : eventItem.date)}</dd>
                   </div>
-                  <div>
-                    <dt>Heure</dt>
-                    <dd>
-                      {eventItem.startTime || '--:--'} -{' '}
-                      {eventItem.endTime || '--:--'}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt>Lieu</dt>
-                    <dd>{eventItem.location || '-'}</dd>
-                  </div>
-                  <div>
-                    <dt>Places</dt>
-                    <dd>
-                      {remaining === null
-                        ? 'Places disponibles'
-                        : `${remaining} place(s) restante(s)`}
-                    </dd>
-                  </div>
+                  {!isNewsItem ? (
+                    <>
+                      <div>
+                        <dt>Heure</dt>
+                        <dd>
+                          {eventItem.startTime || '--:--'} -{' '}
+                          {eventItem.endTime || '--:--'}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>Lieu</dt>
+                        <dd>{eventItem.location || '-'}</dd>
+                      </div>
+                      <div>
+                        <dt>Places</dt>
+                        <dd>
+                          {remaining === null
+                            ? 'Places disponibles'
+                            : `${remaining} place(s) restante(s)`}
+                        </dd>
+                      </div>
+                    </>
+                  ) : null}
                 </dl>
-                <button
-                  className={isClosed || isFull ? 'disabled-event-button' : 'gold-button'}
-                  disabled={isClosed || isFull}
-                  onClick={() => {
-                    setEventError('')
-                    setSelectedEvent(eventItem)
-                  }}
-                  type="button"
-                >
-                  {isClosed
-                    ? 'Inscriptions fermées'
-                    : isFull
-                      ? 'Événement complet'
-                      : 'S’inscrire'}
-                </button>
+                {!isNewsItem ? (
+                  <button
+                    className={isClosed || isFull ? 'disabled-event-button' : 'gold-button'}
+                    disabled={isClosed || isFull}
+                    onClick={() => {
+                      setEventError('')
+                      setSelectedEvent(eventItem)
+                    }}
+                    type="button"
+                  >
+                    {isClosed
+                      ? 'Inscriptions fermées'
+                      : isFull
+                        ? 'Événement complet'
+                        : 'S’inscrire'}
+                  </button>
+                ) : null}
               </article>
             )
           })}

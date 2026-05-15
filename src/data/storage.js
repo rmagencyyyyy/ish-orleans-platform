@@ -675,8 +675,11 @@ export function addEvent(eventData) {
   const events = getEvents()
   const newEvent = {
     id: createId('event'),
+    contentType: 'Événement',
     title: '',
     description: '',
+    imageUrl: '',
+    publishedAt: '',
     date: '',
     startTime: '',
     endTime: '',

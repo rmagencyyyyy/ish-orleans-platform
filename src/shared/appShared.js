@@ -67,7 +67,19 @@ const emptyUserForm = {
 const emptyNoteForm = { title: '', score: '', maxScore: '', date: '', appreciation: '' }
 const emptyGradeForm = { evaluationTitle: '', grade: '', maxGrade: '20', coefficient: '1', date: '', appreciation: '' }
 const emptyAttendanceForm = { date: '', status: 'Présent', comment: '' }
-const emptyEventForm = { title: '', description: '', date: '', startTime: '', endTime: '', location: '', maxParticipants: '', status: 'Ouvert' }
+const emptyEventForm = {
+  contentType: 'Événement',
+  title: '',
+  description: '',
+  imageUrl: '',
+  publishedAt: '',
+  date: '',
+  startTime: '',
+  endTime: '',
+  location: '',
+  maxParticipants: '',
+  status: 'Ouvert',
+}
 const galleryCategories = ['Institut', 'Événement', 'Cours', 'Activité', 'Autre']
 const emptyGalleryForm = { title: '', description: '', category: 'Institut', imageUrl: '', isPublished: true }
 
