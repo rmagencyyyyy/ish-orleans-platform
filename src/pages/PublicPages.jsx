@@ -1,11 +1,13 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   addEventRegistration,
-  getEvents,
+  getPublishedEvents,
+  getPublishedGalleryImages,
+  getPublishedNews,
+  getPublishedPrograms,
   getEventRegistrationsByEventId,
-  getGalleryImages,
-} from '../data/storage'
+} from '../services/contentService'
 import { sendRegistrationRequest } from '../services/registrationRequestApi'
 import Footer from '../components/Footer'
 import Header from '../components/Header'
@@ -227,7 +229,7 @@ function Contact() {
   )
 }
 
-const homePrograms = [
+const fallbackHomePrograms = [
   {
     badge: '6–12 ans',
     title: 'Programme Enfants',
@@ -394,6 +396,27 @@ function HomeHero() {
 }
 
 function HomePrograms() {
+  const [programs, setPrograms] = useState([])
+
+  useEffect(() => {
+    let isMounted = true
+
+    async function loadPrograms() {
+      const loadedPrograms = await getPublishedPrograms()
+      if (isMounted) {
+        setPrograms(loadedPrograms)
+      }
+    }
+
+    loadPrograms()
+
+    return () => {
+      isMounted = false
+    }
+  }, [])
+
+  const visiblePrograms = programs.length > 0 ? programs : fallbackHomePrograms
+
   return (
     <section className="home-section home-programs" id="programmes">
       <div className="home-section-heading">
@@ -404,11 +427,11 @@ function HomePrograms() {
         </p>
       </div>
       <div className="home-program-grid">
-        {homePrograms.map((program) => (
+        {visiblePrograms.map((program) => (
           <article className="home-program-card" key={program.title}>
             <span>{program.badge}</span>
             <h3>{program.title}</h3>
-            <p>{program.text}</p>
+            <p>{program.text || program.description}</p>
             <Link to="/formations">En savoir plus →</Link>
           </article>
         ))}
@@ -511,7 +534,56 @@ function HomePage() {
 }
 
 function FormationsPage() {
-  return <Formations />
+  const [programs, setPrograms] = useState([])
+
+  useEffect(() => {
+    let isMounted = true
+
+    async function loadPrograms() {
+      const loadedPrograms = await getPublishedPrograms()
+      if (isMounted) {
+        setPrograms(loadedPrograms)
+      }
+    }
+
+    loadPrograms()
+
+    return () => {
+      isMounted = false
+    }
+  }, [])
+
+  if (programs.length === 0) {
+    return <Formations />
+  }
+
+  return (
+    <section className="section formations-section" id="formations">
+      <div className="section-heading">
+        <div>
+          <div className="section-kicker">Programmes</div>
+          <h2>Nos programmes</h2>
+        </div>
+        <p>
+          Des parcours pour apprendre, consolider ses bases et avancer à son
+          rythme.
+        </p>
+      </div>
+
+      <div className="formation-grid">
+        {programs.map((program) => (
+          <article className="formation-card" key={program.id}>
+            <div className="formation-icon" aria-hidden="true">
+              {program.badge || '+'}
+            </div>
+            <h3>{program.title}</h3>
+            <p>{program.description || program.text}</p>
+            <Link to="/contact">En savoir plus</Link>
+          </article>
+        ))}
+      </div>
+    </section>
+  )
 }
 
 function InscriptionPage() {
@@ -621,32 +693,28 @@ function formatDate(date) {
   return new Date(date).toLocaleDateString('fr-FR')
 }
 
-function eventRegistrationsCount(eventId) {
-  return getEventRegistrationsByEventId(eventId).length
+async function eventRegistrationsCount(eventId) {
+  return (await getEventRegistrationsByEventId(eventId)).length
 }
 
-function eventRemainingPlaces(eventItem) {
+function eventRemainingPlaces(eventItem, registrationsCount = 0) {
   const maxParticipants = Number(eventItem.maxParticipants) || 0
 
   if (maxParticipants <= 0) {
     return null
   }
 
-  return Math.max(maxParticipants - eventRegistrationsCount(eventItem.id), 0)
+  return Math.max(maxParticipants - registrationsCount, 0)
 }
 
-function eventIsFull(eventItem) {
-  const remaining = eventRemainingPlaces(eventItem)
+function eventIsFull(eventItem, registrationsCount = 0) {
+  const remaining = eventRemainingPlaces(eventItem, registrationsCount)
   return remaining !== null && remaining <= 0
 }
 
 function EventsPublicPage() {
-  const getPublishedContent = () => {
-    return getEvents().filter((eventItem) => {
-      return eventItem.contentType !== 'Actualité' || eventItem.status === 'Publiée'
-    })
-  }
-  const [events, setEvents] = useState(() => getPublishedContent())
+  const [events, setEvents] = useState([])
+  const [eventRegistrationCounts, setEventRegistrationCounts] = useState({})
   const [selectedEvent, setSelectedEvent] = useState(null)
   const [eventForm, setEventForm] = useState({
     firstName: '',
@@ -656,11 +724,33 @@ function EventsPublicPage() {
   const [eventMessage, setEventMessage] = useState('')
   const [eventError, setEventError] = useState('')
 
-  function refreshEvents() {
-    setEvents(getPublishedContent())
+  async function refreshEvents() {
+    const [newsItems, eventItems] = await Promise.all([
+      getPublishedNews(),
+      getPublishedEvents(),
+    ])
+    const publishedContent = [...newsItems, ...eventItems].sort((first, second) => {
+      const firstDate = first.contentType === 'Actualité' ? first.publishedAt : first.date
+      const secondDate = second.contentType === 'Actualité' ? second.publishedAt : second.date
+      return String(secondDate || '').localeCompare(String(firstDate || ''))
+    })
+    const counts = {}
+
+    await Promise.all(
+      eventItems.map(async (eventItem) => {
+        counts[eventItem.id] = await eventRegistrationsCount(eventItem.id)
+      }),
+    )
+
+    setEvents(publishedContent)
+    setEventRegistrationCounts(counts)
   }
 
-  function handleEventRegistrationSubmit(event) {
+  useEffect(() => {
+    refreshEvents()
+  }, [])
+
+  async function handleEventRegistrationSubmit(event) {
     event.preventDefault()
     setEventMessage('')
     setEventError('')
@@ -670,7 +760,7 @@ function EventsPublicPage() {
       return
     }
 
-    if (eventIsFull(selectedEvent)) {
+    if (eventIsFull(selectedEvent, eventRegistrationCounts[selectedEvent.id] || 0)) {
       setEventError('Événement complet')
       return
     }
@@ -680,16 +770,22 @@ function EventsPublicPage() {
       return
     }
 
-    addEventRegistration({
-      eventId: selectedEvent.id,
-      firstName: eventForm.firstName,
-      lastName: eventForm.lastName,
-      age: eventForm.age,
-    })
-    setEventForm({ firstName: '', lastName: '', age: '' })
-    setSelectedEvent(null)
-    setEventMessage('Votre inscription à l’événement a bien été enregistrée.')
-    refreshEvents()
+    try {
+      await addEventRegistration({
+        eventId: selectedEvent.id,
+        firstName: eventForm.firstName,
+        lastName: eventForm.lastName,
+        age: eventForm.age,
+      })
+      setEventForm({ firstName: '', lastName: '', age: '' })
+      setSelectedEvent(null)
+      setEventMessage('Votre inscription à l’événement a bien été enregistrée.')
+      await refreshEvents()
+    } catch (error) {
+      setEventError(
+        error?.message || 'Impossible d’enregistrer l’inscription à cet événement.',
+      )
+    }
   }
 
   return (
@@ -714,9 +810,10 @@ function EventsPublicPage() {
         <div className="event-card-grid">
           {events.map((eventItem) => {
             const isNewsItem = eventItem.contentType === 'Actualité'
-            const remaining = eventRemainingPlaces(eventItem)
+            const registrationsCount = eventRegistrationCounts[eventItem.id] || 0
+            const remaining = eventRemainingPlaces(eventItem, registrationsCount)
             const isClosed = !isNewsItem && eventItem.status !== 'Ouvert'
-            const isFull = !isNewsItem && eventIsFull(eventItem)
+            const isFull = !isNewsItem && eventIsFull(eventItem, registrationsCount)
 
             return (
               <article className="event-card" key={eventItem.id}>
@@ -860,7 +957,24 @@ function EventsPublicPage() {
 function GalleryPublicPage() {
   const [categoryFilter, setCategoryFilter] = useState('Toutes')
   const [selectedImage, setSelectedImage] = useState(null)
-  const publishedImages = getGalleryImages().filter((image) => image.isPublished)
+  const [publishedImages, setPublishedImages] = useState([])
+
+  useEffect(() => {
+    let isMounted = true
+
+    async function loadGallery() {
+      const images = await getPublishedGalleryImages()
+      if (isMounted) {
+        setPublishedImages(images)
+      }
+    }
+
+    loadGallery()
+
+    return () => {
+      isMounted = false
+    }
+  }, [])
   const filteredImages =
     categoryFilter === 'Toutes'
       ? publishedImages

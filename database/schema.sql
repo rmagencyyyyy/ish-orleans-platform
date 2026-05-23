@@ -102,12 +102,27 @@ create table if not exists public.events (
   id uuid primary key default gen_random_uuid(),
   title text,
   description text,
+  image_url text,
   date date,
   start_time time,
   end_time time,
   location text,
   max_participants integer,
   status text default 'Ouvert',
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+alter table public.events
+  add column if not exists image_url text;
+
+create table if not exists public.news (
+  id uuid primary key default gen_random_uuid(),
+  title text,
+  description text,
+  image_url text,
+  published_at date,
+  status text default 'Publiée',
   created_at timestamptz default now(),
   updated_at timestamptz default now()
 );
@@ -128,6 +143,17 @@ create table if not exists public.gallery_images (
   category text,
   image_url text,
   is_published boolean default true,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+create table if not exists public.programs (
+  id uuid primary key default gen_random_uuid(),
+  badge text,
+  title text,
+  description text,
+  is_published boolean default true,
+  sort_order integer default 0,
   created_at timestamptz default now(),
   updated_at timestamptz default now()
 );
@@ -180,8 +206,10 @@ create index if not exists class_students_class_id_idx on public.class_students(
 create index if not exists class_students_registration_id_idx on public.class_students(registration_id);
 create index if not exists class_students_registration_course_id_idx on public.class_students(registration_course_id);
 create index if not exists events_status_date_idx on public.events(status, date);
+create index if not exists news_status_published_at_idx on public.news(status, published_at);
 create index if not exists event_registrations_event_id_idx on public.event_registrations(event_id);
 create index if not exists gallery_images_published_idx on public.gallery_images(is_published);
+create index if not exists programs_published_sort_idx on public.programs(is_published, sort_order);
 create index if not exists attendance_teacher_class_idx on public.attendance(teacher_id, class_id);
 create index if not exists attendance_student_id_idx on public.attendance(student_id);
 create index if not exists student_grades_teacher_class_idx on public.student_grades(teacher_id, class_id);
@@ -208,8 +236,16 @@ create trigger set_events_updated_at
 before update on public.events
 for each row execute function public.set_updated_at();
 
+create trigger set_news_updated_at
+before update on public.news
+for each row execute function public.set_updated_at();
+
 create trigger set_gallery_images_updated_at
 before update on public.gallery_images
+for each row execute function public.set_updated_at();
+
+create trigger set_programs_updated_at
+before update on public.programs
 for each row execute function public.set_updated_at();
 
 create trigger set_attendance_updated_at
@@ -277,8 +313,10 @@ alter table public.registration_courses enable row level security;
 alter table public.classes enable row level security;
 alter table public.class_students enable row level security;
 alter table public.events enable row level security;
+alter table public.news enable row level security;
 alter table public.event_registrations enable row level security;
 alter table public.gallery_images enable row level security;
+alter table public.programs enable row level security;
 alter table public.attendance enable row level security;
 alter table public.student_grades enable row level security;
 alter table public.settings enable row level security;
@@ -345,6 +383,25 @@ on public.events for all
 using (public.has_role('admin'))
 with check (public.has_role('admin'));
 
+create policy "site client can manage events"
+on public.events for all
+using (true)
+with check (true);
+
+create policy "visitors can read published news"
+on public.news for select
+using (status = 'Publiée');
+
+create policy "admins can manage news"
+on public.news for all
+using (public.has_role('admin'))
+with check (public.has_role('admin'));
+
+create policy "site client can manage news"
+on public.news for all
+using (true)
+with check (true);
+
 create policy "visitors can register to events"
 on public.event_registrations for insert
 with check (
@@ -361,6 +418,11 @@ on public.event_registrations for all
 using (public.has_role('admin'))
 with check (public.has_role('admin'));
 
+create policy "site client can manage event registrations"
+on public.event_registrations for all
+using (true)
+with check (true);
+
 create policy "visitors can read published gallery images"
 on public.gallery_images for select
 using (is_published = true);
@@ -369,6 +431,25 @@ create policy "admins can manage gallery images"
 on public.gallery_images for all
 using (public.has_role('admin'))
 with check (public.has_role('admin'));
+
+create policy "site client can manage gallery images"
+on public.gallery_images for all
+using (true)
+with check (true);
+
+create policy "visitors can read published programs"
+on public.programs for select
+using (is_published = true);
+
+create policy "admins can manage programs"
+on public.programs for all
+using (public.has_role('admin'))
+with check (public.has_role('admin'));
+
+create policy "site client can manage programs"
+on public.programs for all
+using (true)
+with check (true);
 
 create policy "admins can manage attendance"
 on public.attendance for all

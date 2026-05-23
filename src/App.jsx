@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   Link,
   Navigate,
@@ -11,22 +11,15 @@ import {
   useSearchParams,
 } from 'react-router-dom'
 import {
-  addEvent,
-  addGalleryImage,
   addAttendance,
   addStudentGrade,
   addStudentNote,
   authenticateUser,
-  deleteEvent,
-  deleteGalleryImage,
   deleteAttendance,
   deleteStudentGrade,
   deleteStudentNote,
   getAttendanceByStudentId,
   getClasses,
-  getEvents,
-  getEventRegistrations,
-  getGalleryImages,
   getRegistrations as getLocalRegistrations,
   getTeacherSchedule,
   getStudentNotesByStudentId,
@@ -34,11 +27,25 @@ import {
   getStudentGradesByStudentId,
   getStudentGradesByTeacherId,
   getUsers,
-  updateEvent,
-  updateGalleryImage,
   updateStudentGrade,
   updateStudentNote,
 } from './data/storage'
+import {
+  addEvent,
+  addGalleryImage,
+  addNews,
+  deleteEvent,
+  deleteGalleryImage,
+  deleteNews,
+  getEvents,
+  getEventRegistrations,
+  getGalleryImages,
+  getNews,
+  getPrograms,
+  updateEvent,
+  updateGalleryImage,
+  updateNews,
+} from './services/contentService'
 import { getSubjectColor, subjectColors } from './config/subjectColors'
 import {
   AboutPage,
@@ -1149,22 +1156,44 @@ function TeacherGradesPage() {
 }
 
 function DashboardPage() {
-  const events = getEvents()
-  const galleryImages = getGalleryImages()
-  const newsItems = events.filter((eventItem) => {
-    return eventItem.contentType === 'Actualité'
+  const [stats, setStats] = useState({
+    newsCount: 0,
+    eventsCount: 0,
+    eventRegistrationsCount: 0,
+    galleryImagesCount: 0,
+    programsCount: 0,
   })
-  const eventItems = events.filter((eventItem) => {
-    return eventItem.contentType !== 'Actualité'
-  })
-  const publishedNewsCount = newsItems.filter((eventItem) => {
-    return eventItem.status === 'Publiée'
-  }).length
-  const openEventsCount = eventItems.filter((eventItem) => {
-    return eventItem.status === 'Ouvert'
-  }).length
-  const publishedImagesCount = galleryImages.filter((image) => image.isPublished).length
-  const hiddenImagesCount = galleryImages.length - publishedImagesCount
+
+  useEffect(() => {
+    let isMounted = true
+
+    async function loadDashboardStats() {
+      const [newsItems, eventItems, eventRegistrations, galleryImages, programs] =
+        await Promise.all([
+          getNews(),
+          getEvents(),
+          getEventRegistrations(),
+          getGalleryImages(),
+          getPrograms(),
+        ])
+
+      if (isMounted) {
+        setStats({
+          newsCount: newsItems.length,
+          eventsCount: eventItems.length,
+          eventRegistrationsCount: eventRegistrations.length,
+          galleryImagesCount: galleryImages.length,
+          programsCount: programs.length,
+        })
+      }
+    }
+
+    loadDashboardStats()
+
+    return () => {
+      isMounted = false
+    }
+  }, [])
 
   return (
     <>
@@ -1174,34 +1203,29 @@ function DashboardPage() {
       />
       <div className="admin-card-grid">
         <article className="admin-card">
-          <span>Actualités publiées</span>
-          <strong>{publishedNewsCount}</strong>
-          <p>Articles visibles sur la page Actualités.</p>
+          <span>Actualités</span>
+          <strong>{stats.newsCount}</strong>
+          <p>Articles enregistrés dans Supabase.</p>
         </article>
         <article className="admin-card">
           <span>Événements créés</span>
-          <strong>{eventItems.length}</strong>
+          <strong>{stats.eventsCount}</strong>
           <p>Événements enregistrés dans l’administration.</p>
         </article>
         <article className="admin-card">
-          <span>Événements ouverts</span>
-          <strong>{openEventsCount}</strong>
-          <p>Événements acceptant les inscriptions.</p>
+          <span>Inscriptions événements</span>
+          <strong>{stats.eventRegistrationsCount}</strong>
+          <p>Inscriptions rapides reçues depuis le site public.</p>
         </article>
         <article className="admin-card">
           <span>Images galerie</span>
-          <strong>{galleryImages.length}</strong>
+          <strong>{stats.galleryImagesCount}</strong>
           <p>Total des images ajoutées à la galerie.</p>
         </article>
         <article className="admin-card">
-          <span>Images publiées</span>
-          <strong>{publishedImagesCount}</strong>
-          <p>Images visibles sur la galerie publique.</p>
-        </article>
-        <article className="admin-card">
-          <span>Images masquées</span>
-          <strong>{hiddenImagesCount}</strong>
-          <p>Images conservées en brouillon dans l’administration.</p>
+          <span>Programmes</span>
+          <strong>{stats.programsCount}</strong>
+          <p>Programmes disponibles pour le site public.</p>
         </article>
       </div>
 
@@ -1241,19 +1265,26 @@ function AdminEventsPage() {
     contentType: requestedType === 'news' ? 'Actualité' : 'Événement',
     status: requestedType === 'news' ? 'Publiée' : 'Ouvert',
   }
-  const [events, setEvents] = useState(() => getEvents())
-  const [eventRegistrations, setEventRegistrations] = useState(() =>
-    getEventRegistrations(),
-  )
+  const [events, setEvents] = useState([])
+  const [eventRegistrations, setEventRegistrations] = useState([])
   const [eventForm, setEventForm] = useState(() => initialEventForm)
   const [editingEventId, setEditingEventId] = useState(null)
   const [openRegistrantsEventId, setOpenRegistrantsEventId] = useState(null)
   const isNewsForm = eventForm.contentType === 'Actualité'
 
-  function refreshAdminEvents() {
-    setEvents(getEvents())
-    setEventRegistrations(getEventRegistrations())
+  async function refreshAdminEvents() {
+    const [newsItems, eventItems, registrations] = await Promise.all([
+      getNews(),
+      getEvents(),
+      getEventRegistrations(),
+    ])
+    setEvents([...newsItems, ...eventItems])
+    setEventRegistrations(registrations)
   }
+
+  useEffect(() => {
+    refreshAdminEvents()
+  }, [])
 
   function handleEventFieldChange(event) {
     const { name, value } = event.currentTarget
@@ -1285,7 +1316,7 @@ function AdminEventsPage() {
     setEditingEventId(null)
   }
 
-  function handleEventSubmit(event) {
+  async function handleEventSubmit(event) {
     event.preventDefault()
     const contentType = eventForm.contentType || 'Événement'
     const payload = {
@@ -1296,14 +1327,24 @@ function AdminEventsPage() {
       status: eventForm.status || (contentType === 'Actualité' ? 'Publiée' : 'Ouvert'),
     }
 
-    if (editingEventId) {
-      updateEvent(editingEventId, payload)
-    } else {
-      addEvent(payload)
-    }
+    try {
+      if (editingEventId) {
+        if (contentType === 'Actualité') {
+          await updateNews(editingEventId, payload)
+        } else {
+          await updateEvent(editingEventId, payload)
+        }
+      } else if (contentType === 'Actualité') {
+        await addNews(payload)
+      } else {
+        await addEvent(payload)
+      }
 
-    refreshAdminEvents()
-    resetEventForm()
+      await refreshAdminEvents()
+      resetEventForm()
+    } catch {
+      // contentService logs the Supabase error and shows the alert.
+    }
   }
 
   function handleEditEvent(eventItem) {
@@ -1325,22 +1366,40 @@ function AdminEventsPage() {
     })
   }
 
-  function handleDeleteEvent(id) {
-    deleteEvent(id)
-    refreshAdminEvents()
-    if (editingEventId === id) {
-      resetEventForm()
+  async function handleDeleteEvent(eventItem) {
+    try {
+      if (eventItem.contentType === 'Actualité') {
+        await deleteNews(eventItem.id)
+      } else {
+        await deleteEvent(eventItem.id)
+      }
+      await refreshAdminEvents()
+      if (editingEventId === eventItem.id) {
+        resetEventForm()
+      }
+    } catch {
+      // contentService logs the Supabase error and shows the alert.
     }
   }
 
-  function handleToggleEventStatus(eventItem) {
+  async function handleToggleEventStatus(eventItem) {
     const isNewsItem = eventItem.contentType === 'Actualité'
-    updateEvent(eventItem.id, {
-      status: isNewsItem
-        ? eventItem.status === 'Publiée' ? 'Brouillon' : 'Publiée'
-        : eventItem.status === 'Ouvert' ? 'Fermé' : 'Ouvert',
-    })
-    refreshAdminEvents()
+    try {
+      if (isNewsItem) {
+        await updateNews(eventItem.id, {
+          ...eventItem,
+          status: eventItem.status === 'Publiée' ? 'Brouillon' : 'Publiée',
+        })
+      } else {
+        await updateEvent(eventItem.id, {
+          ...eventItem,
+          status: eventItem.status === 'Ouvert' ? 'Fermé' : 'Ouvert',
+        })
+      }
+      await refreshAdminEvents()
+    } catch {
+      // contentService logs the Supabase error and shows the alert.
+    }
   }
 
   function registrationsForEvent(eventId) {
@@ -1603,7 +1662,7 @@ function AdminEventsPage() {
                         </button>
                         <button
                           className="danger-action"
-                          onClick={() => handleDeleteEvent(eventItem.id)}
+                          onClick={() => handleDeleteEvent(eventItem)}
                           type="button"
                         >
                           Supprimer
@@ -1656,15 +1715,19 @@ function AdminEventsPage() {
 }
 
 function AdminGalleryPage() {
-  const [images, setImages] = useState(() => getGalleryImages())
+  const [images, setImages] = useState([])
   const [galleryForm, setGalleryForm] = useState(emptyGalleryForm)
   const [editingImageId, setEditingImageId] = useState(null)
   const [galleryMessage, setGalleryMessage] = useState('')
   const [galleryError, setGalleryError] = useState('')
 
-  function refreshGallery() {
-    setImages(getGalleryImages())
+  async function refreshGallery() {
+    setImages(await getGalleryImages())
   }
+
+  useEffect(() => {
+    refreshGallery()
+  }, [])
 
   function handleGalleryFieldChange(event) {
     const { name, value } = event.currentTarget
@@ -1687,7 +1750,7 @@ function AdminGalleryPage() {
     setGalleryError('')
   }
 
-  function handleGallerySubmit(event) {
+  async function handleGallerySubmit(event) {
     event.preventDefault()
     setGalleryMessage('')
     setGalleryError('')
@@ -1697,16 +1760,20 @@ function AdminGalleryPage() {
       return
     }
 
-    if (editingImageId) {
-      updateGalleryImage(editingImageId, galleryForm)
-      setGalleryMessage('L’image a bien été modifiée.')
-    } else {
-      addGalleryImage(galleryForm)
-      setGalleryMessage('L’image a bien été ajoutée à la galerie.')
-    }
+    try {
+      if (editingImageId) {
+        await updateGalleryImage(editingImageId, galleryForm)
+        setGalleryMessage('L’image a bien été modifiée.')
+      } else {
+        await addGalleryImage(galleryForm)
+        setGalleryMessage('L’image a bien été ajoutée à la galerie.')
+      }
 
-    refreshGallery()
-    resetGalleryForm()
+      await refreshGallery()
+      resetGalleryForm()
+    } catch (error) {
+      setGalleryError(error?.message || 'Impossible d’enregistrer l’image.')
+    }
   }
 
   function handleEditGalleryImage(image) {
@@ -1722,17 +1789,28 @@ function AdminGalleryPage() {
     setGalleryError('')
   }
 
-  function handleDeleteGalleryImage(id) {
-    deleteGalleryImage(id)
-    refreshGallery()
-    if (editingImageId === id) {
-      resetGalleryForm()
+  async function handleDeleteGalleryImage(id) {
+    try {
+      await deleteGalleryImage(id)
+      await refreshGallery()
+      if (editingImageId === id) {
+        resetGalleryForm()
+      }
+    } catch (error) {
+      setGalleryError(error?.message || 'Impossible de supprimer l’image.')
     }
   }
 
-  function handleToggleGalleryStatus(image) {
-    updateGalleryImage(image.id, { isPublished: !image.isPublished })
-    refreshGallery()
+  async function handleToggleGalleryStatus(image) {
+    try {
+      await updateGalleryImage(image.id, {
+        ...image,
+        isPublished: !image.isPublished,
+      })
+      await refreshGallery()
+    } catch (error) {
+      setGalleryError(error?.message || 'Impossible de modifier le statut.')
+    }
   }
 
   return (
@@ -1915,6 +1993,14 @@ function App() {
       />
       <Route
         path="/formations"
+        element={
+          <PublicLayout>
+            <FormationsPage />
+          </PublicLayout>
+        }
+      />
+      <Route
+        path="/programmes"
         element={
           <PublicLayout>
             <FormationsPage />
