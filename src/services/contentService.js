@@ -5,6 +5,13 @@ console.log('Mode stockage : Supabase uniquement')
 const EMPTY_ARRAY = []
 const SUPABASE_CONFIGURATION_ERROR =
   'Supabase n’est pas configuré. Vérifiez VITE_SUPABASE_URL et VITE_SUPABASE_ANON_KEY.'
+const TABLES = {
+  news: 'news',
+  events: 'events',
+  eventRegistrations: 'event_registrations',
+  galleryImages: 'gallery_images',
+  programs: 'programs',
+}
 
 function alertSupabaseError(action, error) {
   console.error(`Erreur Supabase (${action})`, error)
@@ -273,7 +280,7 @@ async function deleteRow(table, id, action) {
 
 export async function getNews() {
   return selectRows(
-    'news',
+    TABLES.news,
     mapNews,
     (query) =>
       query
@@ -285,7 +292,7 @@ export async function getNews() {
 
 export async function getPublishedNews() {
   return selectRows(
-    'news',
+    TABLES.news,
     mapNews,
     (query) =>
       query
@@ -298,20 +305,32 @@ export async function getPublishedNews() {
 }
 
 export async function addNews(news) {
-  return insertRow('news', newsPayload(news), mapNews, 'ajout actualité')
+  return insertRow(
+    TABLES.news,
+    newsPayload(news),
+    mapNews,
+    'ajout actualité',
+    'Actualité envoyée dans Supabase table news',
+  )
 }
 
 export async function updateNews(id, news) {
-  return updateRow('news', id, newsPayload(news), mapNews, 'modification actualité')
+  return updateRow(
+    TABLES.news,
+    id,
+    newsPayload(news),
+    mapNews,
+    'modification actualité',
+  )
 }
 
 export async function deleteNews(id) {
-  return deleteRow('news', id, 'suppression actualité')
+  return deleteRow(TABLES.news, id, 'suppression actualité')
 }
 
 export async function getEvents() {
   return selectRows(
-    'events',
+    TABLES.events,
     mapEvent,
     (query) =>
       query.order('sort_order', { ascending: true }).order('date', { ascending: true }),
@@ -321,7 +340,7 @@ export async function getEvents() {
 
 export async function getPublishedEvents() {
   return selectRows(
-    'events',
+    TABLES.events,
     mapEvent,
     (query) =>
       query
@@ -333,12 +352,18 @@ export async function getPublishedEvents() {
 }
 
 export async function addEvent(eventItem) {
-  return insertRow('events', eventPayload(eventItem), mapEvent, 'ajout événement')
+  return insertRow(
+    TABLES.events,
+    eventPayload(eventItem),
+    mapEvent,
+    'ajout événement',
+    'Événement envoyé dans Supabase table events',
+  )
 }
 
 export async function updateEvent(id, eventItem) {
   return updateRow(
-    'events',
+    TABLES.events,
     id,
     eventPayload(eventItem),
     mapEvent,
@@ -347,38 +372,42 @@ export async function updateEvent(id, eventItem) {
 }
 
 export async function deleteEvent(id) {
-  return deleteRow('events', id, 'suppression événement')
+  return deleteRow(TABLES.events, id, 'suppression événement')
 }
 
 export async function addEventRegistration(registration) {
   return insertRow(
-    'event_registrations',
+    TABLES.eventRegistrations,
     eventRegistrationPayload(registration),
     mapEventRegistration,
     'inscription événement',
-    'Inscription événement enregistrée dans Supabase',
+    'Inscription événement envoyée dans Supabase table event_registrations',
   )
 }
 
 export async function getEventRegistrations() {
-  return selectRows('event_registrations', mapEventRegistration, (query) =>
+  return selectRows(TABLES.eventRegistrations, mapEventRegistration, (query) =>
     query.order('created_at', { ascending: false }),
   )
 }
 
 export async function getEventRegistrationsByEventId(eventId) {
-  return selectRows('event_registrations', mapEventRegistration, (query) =>
+  return selectRows(TABLES.eventRegistrations, mapEventRegistration, (query) =>
     query.eq('event_id', eventId).order('created_at', { ascending: false }),
   )
 }
 
 export async function deleteEventRegistration(id) {
-  return deleteRow('event_registrations', id, 'suppression inscription événement')
+  return deleteRow(
+    TABLES.eventRegistrations,
+    id,
+    'suppression inscription événement',
+  )
 }
 
 export async function getGalleryImages() {
   return selectRows(
-    'gallery_images',
+    TABLES.galleryImages,
     mapGalleryImage,
     (query) =>
       query
@@ -390,7 +419,7 @@ export async function getGalleryImages() {
 
 export async function getPublishedGalleryImages() {
   return selectRows(
-    'gallery_images',
+    TABLES.galleryImages,
     mapGalleryImage,
     (query) =>
       query
@@ -403,16 +432,17 @@ export async function getPublishedGalleryImages() {
 
 export async function addGalleryImage(image) {
   return insertRow(
-    'gallery_images',
+    TABLES.galleryImages,
     galleryPayload(image),
     mapGalleryImage,
     'ajout image galerie',
+    'Image envoyée dans Supabase table gallery_images',
   )
 }
 
 export async function updateGalleryImage(id, image) {
   return updateRow(
-    'gallery_images',
+    TABLES.galleryImages,
     id,
     galleryPayload(image),
     mapGalleryImage,
@@ -421,12 +451,12 @@ export async function updateGalleryImage(id, image) {
 }
 
 export async function deleteGalleryImage(id) {
-  return deleteRow('gallery_images', id, 'suppression image galerie')
+  return deleteRow(TABLES.galleryImages, id, 'suppression image galerie')
 }
 
 export async function getPrograms() {
   return selectRows(
-    'programs',
+    TABLES.programs,
     mapProgram,
     (query) =>
       query
@@ -438,7 +468,7 @@ export async function getPrograms() {
 
 export async function getPublishedPrograms() {
   return selectRows(
-    'programs',
+    TABLES.programs,
     mapProgram,
     (query) =>
       query
@@ -450,12 +480,18 @@ export async function getPublishedPrograms() {
 }
 
 export async function addProgram(program) {
-  return insertRow('programs', programPayload(program), mapProgram, 'ajout programme')
+  return insertRow(
+    TABLES.programs,
+    programPayload(program),
+    mapProgram,
+    'ajout programme',
+    'Programme envoyé dans Supabase table programs',
+  )
 }
 
 export async function updateProgram(id, program) {
   return updateRow(
-    'programs',
+    TABLES.programs,
     id,
     programPayload(program),
     mapProgram,
@@ -464,5 +500,5 @@ export async function updateProgram(id, program) {
 }
 
 export async function deleteProgram(id) {
-  return deleteRow('programs', id, 'suppression programme')
+  return deleteRow(TABLES.programs, id, 'suppression programme')
 }
