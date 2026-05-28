@@ -1,105 +1,57 @@
 import { isSupabaseConfigured } from './supabaseClient'
-import * as localStorageProvider from '../data/storage'
 import * as supabaseProvider from './supabaseStorage'
 
-function warnAndFallback(operation, error) {
-  console.warn(`Supabase ${operation} failed. Falling back to localStorage.`, error)
-}
+const SUPABASE_CONFIGURATION_ERROR =
+  'Supabase n’est pas configuré. Vérifiez VITE_SUPABASE_URL et VITE_SUPABASE_ANON_KEY.'
 
-async function withFallback(operation, supabaseAction, localAction) {
+async function withSupabase(supabaseAction) {
   if (!isSupabaseConfigured) {
-    return localAction()
+    throw new Error(SUPABASE_CONFIGURATION_ERROR)
   }
 
-  try {
-    return await supabaseAction()
-  } catch (error) {
-    warnAndFallback(operation, error)
-    return localAction()
-  }
+  return supabaseAction()
 }
 
 export function addRegistration(registration) {
-  return withFallback(
-    'addRegistration',
-    () => supabaseProvider.addRegistration(registration),
-    () => localStorageProvider.addRegistration(registration),
-  )
+  return withSupabase(() => supabaseProvider.addRegistration(registration))
 }
 
 export function getRegistrations() {
-  return withFallback(
-    'getRegistrations',
-    () => supabaseProvider.getRegistrations(),
-    () => localStorageProvider.getRegistrations(),
-  )
+  return withSupabase(() => supabaseProvider.getRegistrations())
 }
 
 export function getRegistrationById(id) {
-  return withFallback(
-    'getRegistrationById',
-    () => supabaseProvider.getRegistrationById(id),
-    () => localStorageProvider.getRegistrationById(id),
-  )
+  return withSupabase(() => supabaseProvider.getRegistrationById(id))
 }
 
 export function updateRegistration(id, registrationData) {
-  return withFallback(
-    'updateRegistration',
-    () => supabaseProvider.updateRegistration(id, registrationData),
-    () => localStorageProvider.updateRegistration(id, registrationData),
-  )
+  return withSupabase(() => supabaseProvider.updateRegistration(id, registrationData))
 }
 
 export function updateRegistrationStatus(id, status) {
-  return withFallback(
-    'updateRegistrationStatus',
-    () => supabaseProvider.updateRegistrationStatus(id, status),
-    () => localStorageProvider.updateRegistrationStatus(id, status),
-  )
+  return withSupabase(() => supabaseProvider.updateRegistrationStatus(id, status))
 }
 
 export function deleteRegistration(id) {
-  return withFallback(
-    'deleteRegistration',
-    () => supabaseProvider.deleteRegistration(id),
-    () => localStorageProvider.deleteRegistration(id),
-  )
+  return withSupabase(() => supabaseProvider.deleteRegistration(id))
 }
 
 export function getSettings() {
-  return withFallback(
-    'getSettings',
-    () => supabaseProvider.getSettings(),
-    () => localStorageProvider.getSettings(),
-  )
+  return withSupabase(() => supabaseProvider.getSettings())
 }
 
 export function updateSettings(settings) {
-  return withFallback(
-    'updateSettings',
-    () => supabaseProvider.updateSettings(settings),
-    () => localStorageProvider.updateSettings(settings),
-  )
+  return withSupabase(() => supabaseProvider.updateSettings(settings))
 }
 
 export function isRegistrationOpen() {
-  return withFallback(
-    'isRegistrationOpen',
-    () => supabaseProvider.isRegistrationOpen(),
-    () => localStorageProvider.isRegistrationOpen(),
-  )
+  return withSupabase(() => supabaseProvider.isRegistrationOpen())
 }
 
 export function setRegistrationOpen(isOpen) {
-  return withFallback(
-    'setRegistrationOpen',
-    () => supabaseProvider.setRegistrationOpen(isOpen),
-    () => localStorageProvider.setRegistrationOpen(isOpen),
-  )
+  return withSupabase(() => supabaseProvider.setRegistrationOpen(isOpen))
 }
 
 export async function getPreGroups() {
-  await getRegistrations()
-  return localStorageProvider.getPreGroups()
+  return []
 }

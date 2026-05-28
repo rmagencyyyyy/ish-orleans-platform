@@ -5,9 +5,6 @@ const DEFAULT_SETTINGS = {
   registrationOpen: true,
 }
 
-const REGISTRATIONS_KEY = 'ish-orleans:registrations'
-const SETTINGS_KEY = 'ish-orleans:settings'
-
 function courseGroupKey(course) {
   return [
     course.subject,
@@ -148,14 +145,6 @@ function mapRegistration(row) {
   }
 }
 
-function syncLocalRegistrations(registrations) {
-  localStorage.setItem(REGISTRATIONS_KEY, JSON.stringify(registrations))
-}
-
-function syncLocalSettings(settings) {
-  localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings))
-}
-
 async function fetchRegistrationRows() {
   const { data, error } = await supabase
     .from('registrations')
@@ -204,15 +193,12 @@ export async function addRegistration(registration) {
       groupKey: course.groupKey || courseGroupKey(course),
     })),
   }
-  syncLocalRegistrations([created, ...JSON.parse(localStorage.getItem(REGISTRATIONS_KEY) || '[]')])
   return created
 }
 
 export async function getRegistrations() {
   const rows = await fetchRegistrationRows()
-  const registrations = rows.map(mapRegistration)
-  syncLocalRegistrations(registrations)
-  return registrations
+  return rows.map(mapRegistration)
 }
 
 export async function getRegistrationById(id) {
@@ -305,7 +291,6 @@ export async function getSettings() {
     DEFAULT_SETTINGS,
   )
 
-  syncLocalSettings(settings)
   return settings
 }
 

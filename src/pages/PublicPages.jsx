@@ -229,24 +229,6 @@ function Contact() {
   )
 }
 
-const fallbackHomePrograms = [
-  {
-    badge: '6–12 ans',
-    title: 'Programme Enfants',
-    text: 'Initiation ludique à la langue arabe et aux bases des sciences islamiques.',
-  },
-  {
-    badge: '13–17 ans',
-    title: 'Programme Adolescents',
-    text: 'Approfondissement de la langue arabe, lecture et compréhension des textes.',
-  },
-  {
-    badge: '18+ ans',
-    title: 'Programme Adultes',
-    text: 'Cours intensifs de langue arabe et d’études islamiques pour adultes.',
-  },
-]
-
 const homeAdvantages = [
   {
     icon: '01',
@@ -415,8 +397,6 @@ function HomePrograms() {
     }
   }, [])
 
-  const visiblePrograms = programs.length > 0 ? programs : fallbackHomePrograms
-
   return (
     <section className="home-section home-programs" id="programmes">
       <div className="home-section-heading">
@@ -426,16 +406,20 @@ function HomePrograms() {
           progression continue.
         </p>
       </div>
-      <div className="home-program-grid">
-        {visiblePrograms.map((program) => (
-          <article className="home-program-card" key={program.title}>
-            <span>{program.badge}</span>
-            <h3>{program.title}</h3>
-            <p>{program.text || program.description}</p>
-            <Link to="/formations">En savoir plus →</Link>
-          </article>
-        ))}
-      </div>
+      {programs.length === 0 ? (
+        <div className="events-empty">Aucun programme publié pour le moment.</div>
+      ) : (
+        <div className="home-program-grid">
+          {programs.map((program) => (
+            <article className="home-program-card" key={program.id}>
+              <span>{program.badge || program.ageRange}</span>
+              <h3>{program.title}</h3>
+              <p>{program.text || program.description}</p>
+              <Link to="/formations">En savoir plus →</Link>
+            </article>
+          ))}
+        </div>
+      )}
     </section>
   )
 }
@@ -553,10 +537,6 @@ function FormationsPage() {
     }
   }, [])
 
-  if (programs.length === 0) {
-    return <Formations />
-  }
-
   return (
     <section className="section formations-section" id="formations">
       <div className="section-heading">
@@ -570,18 +550,22 @@ function FormationsPage() {
         </p>
       </div>
 
-      <div className="formation-grid">
-        {programs.map((program) => (
-          <article className="formation-card" key={program.id}>
-            <div className="formation-icon" aria-hidden="true">
-              {program.badge || '+'}
-            </div>
-            <h3>{program.title}</h3>
-            <p>{program.description || program.text}</p>
-            <Link to="/contact">En savoir plus</Link>
-          </article>
-        ))}
-      </div>
+      {programs.length === 0 ? (
+        <div className="events-empty">Aucun programme publié pour le moment.</div>
+      ) : (
+        <div className="formation-grid">
+          {programs.map((program) => (
+            <article className="formation-card" key={program.id}>
+              <div className="formation-icon" aria-hidden="true">
+                {program.badge || program.ageRange || '+'}
+              </div>
+              <h3>{program.title}</h3>
+              <p>{program.description || program.text}</p>
+              <Link to="/contact">En savoir plus</Link>
+            </article>
+          ))}
+        </div>
+      )}
     </section>
   )
 }

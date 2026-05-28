@@ -109,23 +109,33 @@ create table if not exists public.events (
   location text,
   max_participants integer,
   status text default 'Ouvert',
+  is_published boolean default true,
+  sort_order integer default 0,
   created_at timestamptz default now(),
   updated_at timestamptz default now()
 );
 
 alter table public.events
-  add column if not exists image_url text;
+  add column if not exists image_url text,
+  add column if not exists is_published boolean default true,
+  add column if not exists sort_order integer default 0;
 
 create table if not exists public.news (
   id uuid primary key default gen_random_uuid(),
   title text,
   description text,
   image_url text,
-  published_at date,
   status text default 'Publiée',
+  is_published boolean default true,
+  published_at date,
+  sort_order integer default 0,
   created_at timestamptz default now(),
   updated_at timestamptz default now()
 );
+
+alter table public.news
+  add column if not exists is_published boolean default true,
+  add column if not exists sort_order integer default 0;
 
 create table if not exists public.event_registrations (
   id uuid primary key default gen_random_uuid(),
@@ -133,8 +143,14 @@ create table if not exists public.event_registrations (
   first_name text,
   last_name text,
   age integer,
+  phone text,
+  email text,
   created_at timestamptz default now()
 );
+
+alter table public.event_registrations
+  add column if not exists phone text,
+  add column if not exists email text;
 
 create table if not exists public.gallery_images (
   id uuid primary key default gen_random_uuid(),
@@ -143,20 +159,29 @@ create table if not exists public.gallery_images (
   category text,
   image_url text,
   is_published boolean default true,
-  created_at timestamptz default now(),
-  updated_at timestamptz default now()
-);
-
-create table if not exists public.programs (
-  id uuid primary key default gen_random_uuid(),
-  badge text,
-  title text,
-  description text,
-  is_published boolean default true,
   sort_order integer default 0,
   created_at timestamptz default now(),
   updated_at timestamptz default now()
 );
+
+alter table public.gallery_images
+  add column if not exists sort_order integer default 0;
+
+create table if not exists public.programs (
+  id uuid primary key default gen_random_uuid(),
+  title text,
+  age_range text,
+  description text,
+  sort_order integer default 0,
+  order_index integer default 0,
+  is_published boolean default true,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+alter table public.programs
+  add column if not exists age_range text,
+  add column if not exists order_index integer default 0;
 
 create table if not exists public.attendance (
   id uuid primary key default gen_random_uuid(),
@@ -206,9 +231,12 @@ create index if not exists class_students_class_id_idx on public.class_students(
 create index if not exists class_students_registration_id_idx on public.class_students(registration_id);
 create index if not exists class_students_registration_course_id_idx on public.class_students(registration_course_id);
 create index if not exists events_status_date_idx on public.events(status, date);
+create index if not exists events_published_sort_idx on public.events(is_published, sort_order);
 create index if not exists news_status_published_at_idx on public.news(status, published_at);
+create index if not exists news_published_sort_idx on public.news(is_published, sort_order);
 create index if not exists event_registrations_event_id_idx on public.event_registrations(event_id);
 create index if not exists gallery_images_published_idx on public.gallery_images(is_published);
+create index if not exists gallery_images_published_sort_idx on public.gallery_images(is_published, sort_order);
 create index if not exists programs_published_sort_idx on public.programs(is_published, sort_order);
 create index if not exists attendance_teacher_class_idx on public.attendance(teacher_id, class_id);
 create index if not exists attendance_student_id_idx on public.attendance(student_id);
@@ -376,7 +404,7 @@ using (public.is_teacher_for_class(class_id));
 
 create policy "visitors can read open events"
 on public.events for select
-using (status = 'Ouvert');
+using (is_published = true);
 
 create policy "admins can manage events"
 on public.events for all
@@ -390,7 +418,7 @@ with check (true);
 
 create policy "visitors can read published news"
 on public.news for select
-using (status = 'Publiée');
+using (is_published = true and status = 'Publiée');
 
 create policy "admins can manage news"
 on public.news for all
@@ -410,6 +438,7 @@ with check (
     from public.events
     where events.id = event_id
       and events.status = 'Ouvert'
+      and events.is_published = true
   )
 );
 
