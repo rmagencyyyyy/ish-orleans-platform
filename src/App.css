@@ -2104,6 +2104,26 @@
   color: #b42318 !important;
 }
 
+.admin-primary-action {
+  border-color: rgba(201, 154, 46, 0.62) !important;
+  color: #ffffff !important;
+  background: var(--color-gold) !important;
+}
+
+.admin-content-modal {
+  width: min(980px, 100%);
+}
+
+.admin-content-modal .admin-table {
+  min-width: 820px;
+}
+
+.admin-content-modal .modal-header p {
+  margin: 6px 0 0;
+  color: var(--color-muted);
+  font-weight: 800;
+}
+
 .modal-backdrop {
   position: fixed;
   inset: 0;

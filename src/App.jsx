@@ -34,17 +34,22 @@ import {
   addEvent,
   addGalleryImage,
   addNews,
+  addProgram,
   deleteEvent,
   deleteGalleryImage,
   deleteNews,
+  deleteProgram,
   getEvents,
+  getEventRegistrationCount,
   getEventRegistrations,
+  getEventRegistrationsByEventId,
   getGalleryImages,
   getNews,
   getPrograms,
   updateEvent,
   updateGalleryImage,
   updateNews,
+  updateProgram,
 } from './services/contentService'
 import { getSubjectColor, subjectColors } from './config/subjectColors'
 import {
@@ -83,6 +88,7 @@ const adminNavItems = [
   { label: 'Tableau de bord', path: '/admin/dashboard' },
   { label: 'Actualités / Événements', path: '/admin/events' },
   { label: 'Galerie', path: '/admin/gallery' },
+  { label: 'Programmes', path: '/admin/programs' },
 ]
 
 function ProtectedRoute({ allowedRole }) {
@@ -170,6 +176,33 @@ function formatDate(date) {
   }
 
   return new Date(date).toLocaleDateString('fr-FR')
+}
+
+function isPublishedStatus(status) {
+  return ['published', 'Publiée', 'Ouvert', 'open'].includes(status)
+}
+
+function isOpenEventStatus(status) {
+  return ['open', 'Ouvert', 'published'].includes(status)
+}
+
+function statusLabel(status) {
+  const labels = {
+    open: 'Ouvert',
+    closed: 'Fermé',
+    draft: 'Brouillon',
+    published: 'Publié',
+    Ouvert: 'Ouvert',
+    Fermé: 'Fermé',
+    Brouillon: 'Brouillon',
+    Publiée: 'Publiée',
+  }
+
+  return labels[status] || status || '-'
+}
+
+function statusClass(status, isPublished = true) {
+  return isPublished && isPublishedStatus(status) ? 'validee' : 'refusee'
 }
 
 function Login() {
@@ -1158,10 +1191,12 @@ function TeacherGradesPage() {
 function DashboardPage() {
   const [stats, setStats] = useState({
     newsCount: 0,
+    publishedNewsCount: 0,
     eventsCount: 0,
+    openEventsCount: 0,
     eventRegistrationsCount: 0,
     galleryImagesCount: 0,
-    programsCount: 0,
+    publishedProgramsCount: 0,
   })
 
   useEffect(() => {
@@ -1180,10 +1215,12 @@ function DashboardPage() {
       if (isMounted) {
         setStats({
           newsCount: newsItems.length,
+          publishedNewsCount: newsItems.filter((item) => item.isPublished).length,
           eventsCount: eventItems.length,
+          openEventsCount: eventItems.filter((item) => isOpenEventStatus(item.status)).length,
           eventRegistrationsCount: eventRegistrations.length,
           galleryImagesCount: galleryImages.length,
-          programsCount: programs.length,
+          publishedProgramsCount: programs.filter((item) => item.isPublished).length,
         })
       }
     }
@@ -1205,12 +1242,22 @@ function DashboardPage() {
         <article className="admin-card">
           <span>Actualités</span>
           <strong>{stats.newsCount}</strong>
-          <p>Articles enregistrés dans Supabase.</p>
+          <p>Total des actualités enregistrées dans Supabase.</p>
         </article>
         <article className="admin-card">
-          <span>Événements créés</span>
+          <span>Actualités publiées</span>
+          <strong>{stats.publishedNewsCount}</strong>
+          <p>Actualités visibles sur le site public.</p>
+        </article>
+        <article className="admin-card">
+          <span>Événements</span>
           <strong>{stats.eventsCount}</strong>
-          <p>Événements enregistrés dans l’administration.</p>
+          <p>Total des événements enregistrés dans Supabase.</p>
+        </article>
+        <article className="admin-card">
+          <span>Événements ouverts</span>
+          <strong>{stats.openEventsCount}</strong>
+          <p>Événements acceptant les inscriptions.</p>
         </article>
         <article className="admin-card">
           <span>Inscriptions événements</span>
@@ -1223,9 +1270,9 @@ function DashboardPage() {
           <p>Total des images ajoutées à la galerie.</p>
         </article>
         <article className="admin-card">
-          <span>Programmes</span>
-          <strong>{stats.programsCount}</strong>
-          <p>Programmes disponibles pour le site public.</p>
+          <span>Programmes publiés</span>
+          <strong>{stats.publishedProgramsCount}</strong>
+          <p>Programmes visibles sur le site public.</p>
         </article>
       </div>
 
@@ -1247,6 +1294,10 @@ function DashboardPage() {
             <span>Ajouter une image à la galerie</span>
             <strong>Mettre à jour la galerie publique</strong>
           </Link>
+          <Link className="quick-action-card" to="/admin/programs">
+            <span>Gérer les programmes</span>
+            <strong>Modifier les programmes publiés</strong>
+          </Link>
           <Link className="quick-action-card" to="/">
             <span>Voir le site public</span>
             <strong>Contrôler les contenus visibles</strong>
@@ -1263,13 +1314,19 @@ function AdminEventsPage() {
   const initialEventForm = {
     ...emptyEventForm,
     contentType: requestedType === 'news' ? 'Actualité' : 'Événement',
-    status: requestedType === 'news' ? 'Publiée' : 'Ouvert',
+    status: requestedType === 'news' ? 'published' : 'open',
+    isPublished: true,
+    sortOrder: '',
   }
   const [events, setEvents] = useState([])
   const [eventRegistrations, setEventRegistrations] = useState([])
+  const [eventRegistrationCounts, setEventRegistrationCounts] = useState({})
   const [eventForm, setEventForm] = useState(() => initialEventForm)
   const [editingEventId, setEditingEventId] = useState(null)
-  const [openRegistrantsEventId, setOpenRegistrantsEventId] = useState(null)
+  const [editingContent, setEditingContent] = useState(null)
+  const [selectedRegistrantsEvent, setSelectedRegistrantsEvent] = useState(null)
+  const [selectedRegistrants, setSelectedRegistrants] = useState([])
+  const [adminEventsMessage, setAdminEventsMessage] = useState('')
   const isNewsForm = eventForm.contentType === 'Actualité'
 
   async function refreshAdminEvents() {
@@ -1278,8 +1335,17 @@ function AdminEventsPage() {
       getEvents(),
       getEventRegistrations(),
     ])
+    const counts = {}
+
+    await Promise.all(
+      eventItems.map(async (eventItem) => {
+        counts[eventItem.id] = await getEventRegistrationCount(eventItem.id)
+      }),
+    )
+
     setEvents([...newsItems, ...eventItems])
     setEventRegistrations(registrations)
+    setEventRegistrationCounts(counts)
   }
 
   useEffect(() => {
@@ -1293,7 +1359,7 @@ function AdminEventsPage() {
         return {
           ...current,
           contentType: value,
-          status: value === 'Actualité' ? 'Publiée' : 'Ouvert',
+          status: value === 'Actualité' ? 'published' : 'open',
         }
       }
 
@@ -1314,32 +1380,35 @@ function AdminEventsPage() {
   function resetEventForm() {
     setEventForm(initialEventForm)
     setEditingEventId(null)
+    setEditingContent(null)
   }
 
   async function handleEventSubmit(event) {
     event.preventDefault()
+    setAdminEventsMessage('')
     const contentType = eventForm.contentType || 'Événement'
     const payload = {
       ...eventForm,
       contentType,
       maxParticipants:
         contentType === 'Actualité' ? 0 : Number(eventForm.maxParticipants) || 0,
-      status: eventForm.status || (contentType === 'Actualité' ? 'Publiée' : 'Ouvert'),
+      sortOrder: Number(eventForm.sortOrder) || 0,
+      isPublished: Boolean(eventForm.isPublished),
+      status: eventForm.status || (contentType === 'Actualité' ? 'published' : 'open'),
     }
 
     try {
-      if (editingEventId) {
-        if (contentType === 'Actualité') {
-          await updateNews(editingEventId, payload)
-        } else {
-          await updateEvent(editingEventId, payload)
-        }
-      } else if (contentType === 'Actualité') {
+      if (contentType === 'Actualité') {
         await addNews(payload)
       } else {
         await addEvent(payload)
       }
 
+      setAdminEventsMessage(
+        contentType === 'Actualité'
+          ? 'L’actualité a bien été créée.'
+          : 'L’événement a bien été créé.',
+      )
       await refreshAdminEvents()
       resetEventForm()
     } catch {
@@ -1349,6 +1418,7 @@ function AdminEventsPage() {
 
   function handleEditEvent(eventItem) {
     setEditingEventId(eventItem.id)
+    setEditingContent(eventItem)
     setEventForm({
       contentType: eventItem.contentType || 'Événement',
       title: eventItem.title || '',
@@ -1360,10 +1430,42 @@ function AdminEventsPage() {
       endTime: eventItem.endTime || '',
       location: eventItem.location || '',
       maxParticipants: String(eventItem.maxParticipants || ''),
-      status:
-        eventItem.status ||
-        (eventItem.contentType === 'Actualité' ? 'Publiée' : 'Ouvert'),
+      status: eventItem.status || (eventItem.contentType === 'Actualité' ? 'published' : 'open'),
+      isPublished: eventItem.isPublished !== false,
+      sortOrder: String(eventItem.sortOrder || ''),
     })
+    setAdminEventsMessage('')
+  }
+
+  async function handleEditEventSubmit(event) {
+    event.preventDefault()
+    if (!editingContent) {
+      return
+    }
+
+    const contentType = eventForm.contentType || editingContent.contentType
+    const payload = {
+      ...eventForm,
+      contentType,
+      maxParticipants:
+        contentType === 'Actualité' ? 0 : Number(eventForm.maxParticipants) || 0,
+      sortOrder: Number(eventForm.sortOrder) || 0,
+      isPublished: Boolean(eventForm.isPublished),
+    }
+
+    try {
+      if (contentType === 'Actualité') {
+        await updateNews(editingEventId, payload)
+        setAdminEventsMessage('L’actualité a bien été modifiée.')
+      } else {
+        await updateEvent(editingEventId, payload)
+        setAdminEventsMessage('L’événement a bien été modifié.')
+      }
+      await refreshAdminEvents()
+      resetEventForm()
+    } catch {
+      // contentService logs the Supabase error and shows the alert.
+    }
   }
 
   async function handleDeleteEvent(eventItem) {
@@ -1388,12 +1490,14 @@ function AdminEventsPage() {
       if (isNewsItem) {
         await updateNews(eventItem.id, {
           ...eventItem,
-          status: eventItem.status === 'Publiée' ? 'Brouillon' : 'Publiée',
+          isPublished: !eventItem.isPublished,
+          status: eventItem.isPublished ? 'draft' : 'published',
         })
       } else {
         await updateEvent(eventItem.id, {
           ...eventItem,
-          status: eventItem.status === 'Ouvert' ? 'Fermé' : 'Ouvert',
+          isPublished: !eventItem.isPublished,
+          status: eventItem.isPublished ? 'closed' : 'open',
         })
       }
       await refreshAdminEvents()
@@ -1408,6 +1512,12 @@ function AdminEventsPage() {
     })
   }
 
+  async function handleOpenRegistrants(eventItem) {
+    const registrations = await getEventRegistrationsByEventId(eventItem.id)
+    setSelectedRegistrantsEvent(eventItem)
+    setSelectedRegistrants(registrations)
+  }
+
   return (
     <>
       <AdminPageHeader
@@ -1415,16 +1525,16 @@ function AdminEventsPage() {
         description="Créez et gérez les actualités et événements visibles sur le site public."
       />
 
+      {adminEventsMessage ? (
+        <div className="success-message assignment-message" role="status">
+          {adminEventsMessage}
+        </div>
+      ) : null}
+
       <form className="class-form admin-panel" onSubmit={handleEventSubmit}>
         <div>
-          <p className="section-kicker">
-            {editingEventId ? 'Modification' : 'Création'}
-          </p>
-          <h2>
-            {editingEventId
-              ? `Modifier ${isNewsForm ? 'l’actualité' : 'l’événement'}`
-              : `Créer ${isNewsForm ? 'une actualité' : 'un événement'}`}
-          </h2>
+          <p className="section-kicker">Création</p>
+          <h2>{`Créer ${isNewsForm ? 'une actualité' : 'un événement'}`}</h2>
         </div>
         <div className="class-form-grid">
           <label className="form-field" htmlFor="event-type-admin">
@@ -1457,6 +1567,16 @@ function AdminEventsPage() {
               name="description"
               onChange={handleEventFieldChange}
               value={eventForm.description}
+            />
+          </label>
+          <label className="form-field field-wide" htmlFor="event-image-url-admin">
+            <span>Image URL</span>
+            <input
+              id="event-image-url-admin"
+              name="imageUrl"
+              onChange={handleEventFieldChange}
+              type="url"
+              value={eventForm.imageUrl}
             />
           </label>
           {isNewsForm ? (
@@ -1554,29 +1674,51 @@ function AdminEventsPage() {
             >
               {isNewsForm ? (
                 <>
-                  <option>Publiée</option>
-                  <option>Brouillon</option>
+                  <option value="published">published</option>
+                  <option value="draft">draft</option>
                 </>
               ) : (
                 <>
-                  <option>Ouvert</option>
-                  <option>Fermé</option>
+                  <option value="open">open</option>
+                  <option value="closed">closed</option>
+                  <option value="draft">draft</option>
+                  <option value="published">published</option>
                 </>
               )}
             </select>
           </label>
+          <label className="form-field" htmlFor="event-published-admin">
+            <span>Publié</span>
+            <select
+              id="event-published-admin"
+              name="isPublished"
+              onChange={(event) =>
+                setEventForm((current) => ({
+                  ...current,
+                  isPublished: event.currentTarget.value === 'true',
+                }))
+              }
+              value={String(eventForm.isPublished)}
+            >
+              <option value="true">true</option>
+              <option value="false">false</option>
+            </select>
+          </label>
+          <label className="form-field" htmlFor="event-sort-admin">
+            <span>Ordre d’affichage</span>
+            <input
+              id="event-sort-admin"
+              name="sortOrder"
+              onChange={handleEventFieldChange}
+              type="number"
+              value={eventForm.sortOrder}
+            />
+          </label>
         </div>
         <div className="class-form-actions">
           <button className="btn btn-primary submit-btn" type="submit">
-            {editingEventId
-              ? 'Enregistrer les modifications'
-              : `Créer ${isNewsForm ? 'l’actualité' : 'l’événement'}`}
+            {`Créer ${isNewsForm ? 'l’actualité' : 'l’événement'}`}
           </button>
-          {editingEventId ? (
-            <button onClick={resetEventForm} type="button">
-              Annuler
-            </button>
-          ) : null}
         </div>
       </form>
 
@@ -1597,6 +1739,7 @@ function AdminEventsPage() {
                 <th>Lieu</th>
                 <th>Inscrits</th>
                 <th>Statut</th>
+                <th>Publication</th>
                 <th>Actions</th>
               </tr>
             </thead>
@@ -1621,29 +1764,35 @@ function AdminEventsPage() {
                     <td>
                       {isNewsItem
                         ? '-'
-                        : `${registrations.length} / ${eventItem.maxParticipants || '∞'}`}
+                        : `${eventRegistrationCounts[eventItem.id] ?? registrations.length} / ${
+                            eventItem.maxParticipants || '∞'
+                          }`}
+                    </td>
+                    <td>
+                      <span
+                        className={`status-pill ${statusClass(
+                          eventItem.status,
+                          eventItem.isPublished,
+                        )}`}
+                      >
+                        {statusLabel(eventItem.status)}
+                      </span>
                     </td>
                     <td>
                       <span
                         className={`status-pill ${
-                          eventItem.status === 'Ouvert' ||
-                          eventItem.status === 'Publiée'
-                            ? 'validee'
-                            : 'refusee'
+                          eventItem.isPublished ? 'validee' : 'refusee'
                         }`}
                       >
-                        {eventItem.status}
+                        {eventItem.isPublished ? 'Publié' : 'Masqué'}
                       </span>
                     </td>
                     <td>
                       <div className="table-actions">
                         {!isNewsItem ? (
                           <button
-                            onClick={() =>
-                              setOpenRegistrantsEventId((current) =>
-                                current === eventItem.id ? null : eventItem.id,
-                              )
-                            }
+                            className="admin-primary-action"
+                            onClick={() => handleOpenRegistrants(eventItem)}
                             type="button"
                           >
                             Voir les inscrits
@@ -1657,8 +1806,8 @@ function AdminEventsPage() {
                           type="button"
                         >
                           {isNewsItem
-                            ? eventItem.status === 'Publiée' ? 'Masquer' : 'Publier'
-                            : eventItem.status === 'Ouvert' ? 'Fermer' : 'Ouvrir'}
+                            ? eventItem.isPublished ? 'Masquer' : 'Publier'
+                            : eventItem.isPublished ? 'Masquer' : 'Publier'}
                         </button>
                         <button
                           className="danger-action"
@@ -1677,37 +1826,154 @@ function AdminEventsPage() {
         </div>
       )}
 
-      {openRegistrantsEventId ? (
-        <div className="event-registrants-panel admin-panel">
-          <h2>Inscrits à l’événement</h2>
-          {registrationsForEvent(openRegistrantsEventId).length === 0 ? (
-            <p>Aucune inscription pour cet événement.</p>
-          ) : (
-            <div className="admin-table-wrap compact-table">
-              <table className="admin-table">
-                <thead>
-                  <tr>
-                    <th>Nom</th>
-                    <th>Prénom</th>
-                    <th>Âge</th>
-                    <th>Date d’inscription</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {registrationsForEvent(openRegistrantsEventId).map(
-                    (registration) => (
+      {selectedRegistrantsEvent ? (
+        <div className="modal-backdrop" role="presentation">
+          <section className="registration-modal admin-content-modal" role="dialog" aria-modal="true">
+            <div className="modal-header">
+              <div>
+                <p className="section-kicker">Inscriptions</p>
+                <h2>Inscrits à l’événement : {selectedRegistrantsEvent.title}</h2>
+                <p>Nombre total d’inscrits : {selectedRegistrants.length}</p>
+              </div>
+              <button
+                onClick={() => {
+                  setSelectedRegistrantsEvent(null)
+                  setSelectedRegistrants([])
+                }}
+                type="button"
+              >
+                Fermer
+              </button>
+            </div>
+            {selectedRegistrants.length === 0 ? (
+              <p>Aucun inscrit pour cet événement.</p>
+            ) : (
+              <div className="admin-table-wrap compact-table">
+                <table className="admin-table">
+                  <thead>
+                    <tr>
+                      <th>Nom</th>
+                      <th>Prénom</th>
+                      <th>Âge</th>
+                      <th>Téléphone</th>
+                      <th>Email</th>
+                      <th>Date d’inscription</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {selectedRegistrants.map((registration) => (
                       <tr key={registration.id}>
-                        <td>{registration.lastName}</td>
-                        <td>{registration.firstName}</td>
-                        <td>{registration.age}</td>
+                        <td>{registration.lastName || '-'}</td>
+                        <td>{registration.firstName || '-'}</td>
+                        <td>{registration.age || '-'}</td>
+                        <td>{registration.phone || '-'}</td>
+                        <td>{registration.email || '-'}</td>
                         <td>{formatDate(registration.createdAt)}</td>
                       </tr>
-                    ),
-                  )}
-                </tbody>
-              </table>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+        </div>
+      ) : null}
+
+      {editingContent ? (
+        <div className="modal-backdrop" role="presentation">
+          <form className="registration-modal admin-content-modal" onSubmit={handleEditEventSubmit}>
+            <div className="modal-header">
+              <div>
+                <p className="section-kicker">Modification</p>
+                <h2>
+                  Modifier {editingContent.contentType === 'Actualité' ? 'l’actualité' : 'l’événement'}
+                </h2>
+              </div>
+              <button onClick={resetEventForm} type="button">
+                Fermer
+              </button>
             </div>
-          )}
+            <div className="class-form-grid">
+              <label className="form-field">
+                <span>Titre</span>
+                <input name="title" onChange={handleEventFieldChange} required value={eventForm.title} />
+              </label>
+              <label className="form-field field-wide">
+                <span>Description</span>
+                <textarea name="description" onChange={handleEventFieldChange} value={eventForm.description} />
+              </label>
+              <label className="form-field field-wide">
+                <span>Image URL</span>
+                <input name="imageUrl" onChange={handleEventFieldChange} type="url" value={eventForm.imageUrl} />
+              </label>
+              {eventForm.contentType === 'Actualité' ? (
+                <label className="form-field">
+                  <span>Date de publication</span>
+                  <input name="publishedAt" onChange={handleEventFieldChange} type="date" value={eventForm.publishedAt} />
+                </label>
+              ) : (
+                <>
+                  <label className="form-field">
+                    <span>Date</span>
+                    <input name="date" onChange={handleEventFieldChange} type="date" value={eventForm.date} />
+                  </label>
+                  <label className="form-field">
+                    <span>Heure de début</span>
+                    <input name="startTime" onChange={handleEventFieldChange} type="time" value={eventForm.startTime} />
+                  </label>
+                  <label className="form-field">
+                    <span>Heure de fin</span>
+                    <input name="endTime" onChange={handleEventFieldChange} type="time" value={eventForm.endTime} />
+                  </label>
+                  <label className="form-field">
+                    <span>Lieu</span>
+                    <input name="location" onChange={handleEventFieldChange} value={eventForm.location} />
+                  </label>
+                  <label className="form-field">
+                    <span>Nombre maximum de participants</span>
+                    <input min="0" name="maxParticipants" onChange={handleEventFieldChange} type="number" value={eventForm.maxParticipants} />
+                  </label>
+                </>
+              )}
+              <label className="form-field">
+                <span>Statut</span>
+                <select name="status" onChange={handleEventFieldChange} value={eventForm.status}>
+                  <option value="open">open</option>
+                  <option value="closed">closed</option>
+                  <option value="draft">draft</option>
+                  <option value="published">published</option>
+                </select>
+              </label>
+              <label className="form-field">
+                <span>is_published</span>
+                <select
+                  name="isPublished"
+                  onChange={(event) =>
+                    setEventForm((current) => ({
+                      ...current,
+                      isPublished: event.currentTarget.value === 'true',
+                    }))
+                  }
+                  value={String(eventForm.isPublished)}
+                >
+                  <option value="true">true</option>
+                  <option value="false">false</option>
+                </select>
+              </label>
+              <label className="form-field">
+                <span>sort_order</span>
+                <input name="sortOrder" onChange={handleEventFieldChange} type="number" value={eventForm.sortOrder} />
+              </label>
+            </div>
+            <div className="class-form-actions">
+              <button className="btn btn-primary submit-btn" type="submit">
+                Enregistrer les modifications
+              </button>
+              <button onClick={resetEventForm} type="button">
+                Annuler
+              </button>
+            </div>
+          </form>
         </div>
       ) : null}
     </>
@@ -1984,6 +2250,265 @@ function AdminGalleryPage() {
   )
 }
 
+const emptyProgramForm = {
+  title: '',
+  ageRange: '',
+  description: '',
+  sortOrder: '',
+  orderIndex: '',
+  isPublished: true,
+}
+
+function AdminProgramsPage() {
+  const [programs, setPrograms] = useState([])
+  const [programForm, setProgramForm] = useState(emptyProgramForm)
+  const [editingProgramId, setEditingProgramId] = useState(null)
+  const [programMessage, setProgramMessage] = useState('')
+  const [programError, setProgramError] = useState('')
+
+  async function refreshPrograms() {
+    setPrograms(await getPrograms())
+  }
+
+  useEffect(() => {
+    refreshPrograms()
+  }, [])
+
+  function handleProgramFieldChange(event) {
+    const { name, value } = event.currentTarget
+    setProgramForm((current) => ({ ...current, [name]: value }))
+  }
+
+  function resetProgramForm() {
+    setProgramForm(emptyProgramForm)
+    setEditingProgramId(null)
+    setProgramError('')
+  }
+
+  async function handleProgramSubmit(event) {
+    event.preventDefault()
+    setProgramMessage('')
+    setProgramError('')
+
+    const payload = {
+      ...programForm,
+      sortOrder: Number(programForm.sortOrder) || 0,
+      orderIndex: Number(programForm.orderIndex || programForm.sortOrder) || 0,
+      isPublished: Boolean(programForm.isPublished),
+    }
+
+    try {
+      if (editingProgramId) {
+        await updateProgram(editingProgramId, payload)
+        setProgramMessage('Le programme a bien été modifié.')
+      } else {
+        await addProgram(payload)
+        setProgramMessage('Le programme a bien été ajouté.')
+      }
+
+      await refreshPrograms()
+      resetProgramForm()
+    } catch (error) {
+      setProgramError(error?.message || 'Impossible d’enregistrer le programme.')
+    }
+  }
+
+  function handleEditProgram(program) {
+    setEditingProgramId(program.id)
+    setProgramForm({
+      title: program.title || '',
+      ageRange: program.ageRange || program.badge || '',
+      description: program.description || program.text || '',
+      sortOrder: String(program.sortOrder || ''),
+      orderIndex: String(program.orderIndex || ''),
+      isPublished: Boolean(program.isPublished),
+    })
+    setProgramMessage('')
+    setProgramError('')
+  }
+
+  async function handleDeleteProgram(id) {
+    try {
+      await deleteProgram(id)
+      await refreshPrograms()
+      if (editingProgramId === id) {
+        resetProgramForm()
+      }
+    } catch (error) {
+      setProgramError(error?.message || 'Impossible de supprimer le programme.')
+    }
+  }
+
+  async function handleToggleProgramStatus(program) {
+    try {
+      await updateProgram(program.id, {
+        ...program,
+        isPublished: !program.isPublished,
+      })
+      await refreshPrograms()
+    } catch (error) {
+      setProgramError(error?.message || 'Impossible de modifier le statut.')
+    }
+  }
+
+  return (
+    <>
+      <AdminPageHeader
+        title="Programmes"
+        description="Créez et modifiez les programmes affichés sur le site public."
+      />
+
+      <form className="class-form admin-panel" onSubmit={handleProgramSubmit}>
+        <div>
+          <p className="section-kicker">
+            {editingProgramId ? 'Modification' : 'Création'}
+          </p>
+          <h2>{editingProgramId ? 'Modifier un programme' : 'Ajouter un programme'}</h2>
+        </div>
+        {programMessage ? (
+          <div className="success-message assignment-message" role="status">
+            {programMessage}
+          </div>
+        ) : null}
+        {programError ? (
+          <div className="login-error" role="alert">
+            {programError}
+          </div>
+        ) : null}
+        <div className="class-form-grid">
+          <label className="form-field">
+            <span>Titre</span>
+            <input
+              name="title"
+              onChange={handleProgramFieldChange}
+              required
+              value={programForm.title}
+            />
+          </label>
+          <label className="form-field">
+            <span>Tranche d’âge</span>
+            <input
+              name="ageRange"
+              onChange={handleProgramFieldChange}
+              value={programForm.ageRange}
+            />
+          </label>
+          <label className="form-field field-wide">
+            <span>Description</span>
+            <textarea
+              name="description"
+              onChange={handleProgramFieldChange}
+              value={programForm.description}
+            />
+          </label>
+          <label className="form-field">
+            <span>Ordre d’affichage</span>
+            <input
+              name="sortOrder"
+              onChange={handleProgramFieldChange}
+              type="number"
+              value={programForm.sortOrder}
+            />
+          </label>
+          <label className="form-field">
+            <span>order_index</span>
+            <input
+              name="orderIndex"
+              onChange={handleProgramFieldChange}
+              type="number"
+              value={programForm.orderIndex}
+            />
+          </label>
+          <label className="form-field">
+            <span>Publié</span>
+            <select
+              name="isPublished"
+              onChange={(event) =>
+                setProgramForm((current) => ({
+                  ...current,
+                  isPublished: event.currentTarget.value === 'true',
+                }))
+              }
+              value={String(programForm.isPublished)}
+            >
+              <option value="true">true</option>
+              <option value="false">false</option>
+            </select>
+          </label>
+        </div>
+        <div className="class-form-actions">
+          <button className="btn btn-primary submit-btn" type="submit">
+            {editingProgramId ? 'Enregistrer les modifications' : 'Ajouter le programme'}
+          </button>
+          {editingProgramId ? (
+            <button onClick={resetProgramForm} type="button">
+              Annuler
+            </button>
+          ) : null}
+        </div>
+      </form>
+
+      {programs.length === 0 ? (
+        <div className="admin-empty-state">
+          <h2>Aucun programme</h2>
+          <p>Les programmes publiés apparaîtront sur la page Programmes.</p>
+        </div>
+      ) : (
+        <div className="admin-table-wrap">
+          <table className="admin-table">
+            <thead>
+              <tr>
+                <th>Titre</th>
+                <th>Tranche d’âge</th>
+                <th>Description</th>
+                <th>Ordre</th>
+                <th>Statut</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {programs.map((program) => (
+                <tr key={program.id}>
+                  <td>{program.title}</td>
+                  <td>{program.ageRange || '-'}</td>
+                  <td>{program.description || '-'}</td>
+                  <td>{program.sortOrder}</td>
+                  <td>
+                    <span
+                      className={`status-pill ${
+                        program.isPublished ? 'validee' : 'refusee'
+                      }`}
+                    >
+                      {program.isPublished ? 'Publié' : 'Masqué'}
+                    </span>
+                  </td>
+                  <td>
+                    <div className="table-actions">
+                      <button onClick={() => handleEditProgram(program)} type="button">
+                        Modifier
+                      </button>
+                      <button onClick={() => handleToggleProgramStatus(program)} type="button">
+                        {program.isPublished ? 'Masquer' : 'Publier'}
+                      </button>
+                      <button
+                        className="danger-action"
+                        onClick={() => handleDeleteProgram(program.id)}
+                        type="button"
+                      >
+                        Supprimer
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </>
+  )
+}
+
 function App() {
   return (
     <Routes>
@@ -2068,6 +2593,7 @@ function App() {
           <Route path="teachers/:id/schedule" element={<Navigate replace to="/admin/dashboard" />} />
           <Route path="events" element={<AdminEventsPage />} />
           <Route path="gallery" element={<AdminGalleryPage />} />
+          <Route path="programs" element={<AdminProgramsPage />} />
           <Route path="users" element={<Navigate replace to="/admin/dashboard" />} />
           <Route path="settings" element={<Navigate replace to="/admin/dashboard" />} />
         </Route>

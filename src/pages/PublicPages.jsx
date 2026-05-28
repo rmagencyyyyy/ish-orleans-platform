@@ -696,6 +696,23 @@ function eventIsFull(eventItem, registrationsCount = 0) {
   return remaining !== null && remaining <= 0
 }
 
+function eventIsOpen(eventItem) {
+  return ['open', 'Ouvert', 'published'].includes(eventItem.status)
+}
+
+function eventStatusLabel(status) {
+  const labels = {
+    open: 'Ouvert',
+    closed: 'Fermé',
+    draft: 'Brouillon',
+    published: 'Publié',
+    Ouvert: 'Ouvert',
+    Fermé: 'Fermé',
+  }
+
+  return labels[status] || status || '-'
+}
+
 function EventsPublicPage() {
   const [events, setEvents] = useState([])
   const [eventRegistrationCounts, setEventRegistrationCounts] = useState({})
@@ -739,7 +756,7 @@ function EventsPublicPage() {
     setEventMessage('')
     setEventError('')
 
-    if (!selectedEvent || selectedEvent.status !== 'Ouvert') {
+    if (!selectedEvent || !eventIsOpen(selectedEvent)) {
       setEventError('Les inscriptions sont fermées pour cet événement.')
       return
     }
@@ -796,13 +813,13 @@ function EventsPublicPage() {
             const isNewsItem = eventItem.contentType === 'Actualité'
             const registrationsCount = eventRegistrationCounts[eventItem.id] || 0
             const remaining = eventRemainingPlaces(eventItem, registrationsCount)
-            const isClosed = !isNewsItem && eventItem.status !== 'Ouvert'
+            const isClosed = !isNewsItem && !eventIsOpen(eventItem)
             const isFull = !isNewsItem && eventIsFull(eventItem, registrationsCount)
 
             return (
               <article className="event-card" key={eventItem.id}>
                 <span className={`status-pill ${isClosed ? 'refusee' : 'validee'}`}>
-                  {isNewsItem ? 'Actualité' : eventItem.status}
+                  {isNewsItem ? 'Actualité' : eventStatusLabel(eventItem.status)}
                 </span>
                 {eventItem.imageUrl ? (
                   <img

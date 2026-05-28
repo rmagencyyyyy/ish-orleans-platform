@@ -265,6 +265,27 @@ async function updateRow(table, id, payload, mapper, action) {
   return mapper(data)
 }
 
+async function countRows(table, queryBuilder, action) {
+  requireSupabaseConfigured()
+
+  let query = supabase.from(table).select('*', {
+    count: 'exact',
+    head: true,
+  })
+  if (queryBuilder) {
+    query = queryBuilder(query)
+  }
+
+  const { count, error } = await query
+
+  if (error) {
+    alertSupabaseError(action, error)
+    throw error
+  }
+
+  return count || 0
+}
+
 async function deleteRow(table, id, action) {
   requireSupabaseConfigured()
 
@@ -315,13 +336,15 @@ export async function addNews(news) {
 }
 
 export async function updateNews(id, news) {
-  return updateRow(
+  const updatedNews = await updateRow(
     TABLES.news,
     id,
     newsPayload(news),
     mapNews,
     'modification actualité',
   )
+  console.log('Actualité modifiée dans Supabase')
+  return updatedNews
 }
 
 export async function deleteNews(id) {
@@ -362,13 +385,15 @@ export async function addEvent(eventItem) {
 }
 
 export async function updateEvent(id, eventItem) {
-  return updateRow(
+  const updatedEvent = await updateRow(
     TABLES.events,
     id,
     eventPayload(eventItem),
     mapEvent,
     'modification événement',
   )
+  console.log('Événement modifié dans Supabase')
+  return updatedEvent
 }
 
 export async function deleteEvent(id) {
@@ -386,15 +411,31 @@ export async function addEventRegistration(registration) {
 }
 
 export async function getEventRegistrations() {
-  return selectRows(TABLES.eventRegistrations, mapEventRegistration, (query) =>
-    query.order('created_at', { ascending: false }),
+  return selectRows(
+    TABLES.eventRegistrations,
+    mapEventRegistration,
+    (query) => query.order('created_at', { ascending: false }),
+    'Inscrits événement chargés depuis Supabase',
   )
 }
 
 export async function getEventRegistrationsByEventId(eventId) {
-  return selectRows(TABLES.eventRegistrations, mapEventRegistration, (query) =>
-    query.eq('event_id', eventId).order('created_at', { ascending: false }),
+  return selectRows(
+    TABLES.eventRegistrations,
+    mapEventRegistration,
+    (query) => query.eq('event_id', eventId).order('created_at', { ascending: false }),
+    'Inscrits événement chargés depuis Supabase',
   )
+}
+
+export async function getEventRegistrationCount(eventId) {
+  const count = await countRows(
+    TABLES.eventRegistrations,
+    (query) => query.eq('event_id', eventId),
+    'comptage inscrits événement',
+  )
+  console.log('Inscrits événement chargés depuis Supabase')
+  return count
 }
 
 export async function deleteEventRegistration(id) {
@@ -490,13 +531,15 @@ export async function addProgram(program) {
 }
 
 export async function updateProgram(id, program) {
-  return updateRow(
+  const updatedProgram = await updateRow(
     TABLES.programs,
     id,
     programPayload(program),
     mapProgram,
     'modification programme',
   )
+  console.log('Programme modifié dans Supabase')
+  return updatedProgram
 }
 
 export async function deleteProgram(id) {
