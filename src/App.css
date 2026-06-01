@@ -933,12 +933,27 @@
   font-weight: 900;
 }
 
+.event-card-image-button {
+  display: block;
+  width: 100%;
+  margin-top: 18px;
+  border: 0;
+  border-radius: 10px;
+  padding: 0;
+  background: transparent;
+  cursor: zoom-in;
+}
+
 .event-card-image {
   width: 100%;
   aspect-ratio: 16 / 9;
-  margin-top: 18px;
   border-radius: 10px;
   object-fit: cover;
+}
+
+.event-card-image-button:focus-visible {
+  outline: 3px solid var(--color-gold);
+  outline-offset: 4px;
 }
 
 .event-card h2 {
@@ -1186,6 +1201,19 @@
   margin: 0;
   color: #61706b;
   line-height: 1.7;
+}
+
+.image-modal-backdrop {
+  background: rgba(0, 0, 0, 0.82);
+}
+
+.event-image-modal {
+  width: min(1180px, 100%);
+  background: #ffffff;
+}
+
+.event-image-modal img {
+  max-height: 74svh;
 }
 
 .timetable-page {

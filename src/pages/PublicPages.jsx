@@ -718,6 +718,7 @@ function EventsPublicPage() {
   const [events, setEvents] = useState([])
   const [eventRegistrationCounts, setEventRegistrationCounts] = useState({})
   const [selectedEvent, setSelectedEvent] = useState(null)
+  const [selectedContentImage, setSelectedContentImage] = useState(null)
   const [eventForm, setEventForm] = useState({
     firstName: '',
     lastName: '',
@@ -835,11 +836,24 @@ function EventsPublicPage() {
                   ) : null}
                 </div>
                 {eventItem.imageUrl ? (
-                  <img
-                    alt={eventItem.title}
-                    className="event-card-image"
-                    src={eventItem.imageUrl}
-                  />
+                  <button
+                    aria-label={`Afficher l’image : ${eventItem.title}`}
+                    className="event-card-image-button"
+                    onClick={() =>
+                      setSelectedContentImage({
+                        title: eventItem.title,
+                        imageUrl: eventItem.imageUrl,
+                        type: isNewsItem ? 'Actualité' : 'Événement',
+                      })
+                    }
+                    type="button"
+                  >
+                    <img
+                      alt={eventItem.title}
+                      className="event-card-image"
+                      src={eventItem.imageUrl}
+                    />
+                  </button>
                 ) : null}
                 <h2>{eventItem.title}</h2>
                 <p>{eventItem.description}</p>
@@ -962,6 +976,33 @@ function EventsPublicPage() {
               Valider mon inscription
             </button>
           </form>
+        </div>
+      ) : null}
+
+      {selectedContentImage ? (
+        <div
+          className="modal-backdrop image-modal-backdrop"
+          onClick={() => setSelectedContentImage(null)}
+          role="presentation"
+        >
+          <section
+            className="gallery-modal event-image-modal"
+            onClick={(event) => event.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-label={selectedContentImage.title}
+          >
+            <div className="modal-header">
+              <div>
+                <p className="section-kicker">{selectedContentImage.type}</p>
+                <h2>{selectedContentImage.title}</h2>
+              </div>
+              <button onClick={() => setSelectedContentImage(null)} type="button">
+                Fermer
+              </button>
+            </div>
+            <img alt={selectedContentImage.title} src={selectedContentImage.imageUrl} />
+          </section>
         </div>
       ) : null}
     </section>

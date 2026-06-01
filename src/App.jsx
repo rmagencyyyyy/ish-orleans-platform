@@ -1351,7 +1351,7 @@ function adminContentStatus(contentType, isPublished) {
     return isPublished ? 'published' : 'draft'
   }
 
-  return isPublished ? 'open' : 'draft'
+  return isPublished ? 'published' : 'draft'
 }
 
 function contentDateValue(item) {
@@ -1374,7 +1374,7 @@ function AdminEventsPage() {
   const initialEventForm = {
     ...emptyEventForm,
     contentType: requestedType === 'news' ? 'Actualité' : 'Événement',
-    status: requestedType === 'news' ? 'published' : 'open',
+    status: 'published',
     isPublished: true,
     isPriority: false,
     sortOrder: '',
@@ -1573,7 +1573,7 @@ function AdminEventsPage() {
         await updateEvent(eventItem.id, {
           ...eventItem,
           isPublished: !eventItem.isPublished,
-          status: eventItem.isPublished ? 'draft' : 'open',
+          status: eventItem.isPublished ? 'draft' : 'published',
         })
       }
       await refreshAdminEvents()
@@ -1733,43 +1733,39 @@ function AdminEventsPage() {
           </label>
             </>
           ) : null}
-          <label className="form-field priority-field" htmlFor="event-published-admin">
-            <span>Publication</span>
-            <label className="checkbox-field">
-              <input
-                checked={Boolean(eventForm.isPublished)}
-                id="event-published-admin"
-                onChange={(event) => {
-                  setAdminEventsError('')
-                  setEventForm((current) => ({
-                    ...current,
-                    isPublished: event.currentTarget.checked,
-                  }))
-                }}
-                type="checkbox"
-              />
-              Publié
-            </label>
+          <label className="form-field" htmlFor="event-published-admin">
+            <span>Statut de publication</span>
+            <select
+              id="event-published-admin"
+              onChange={(event) => {
+                setAdminEventsError('')
+                setEventForm((current) => ({
+                  ...current,
+                  isPublished: event.currentTarget.value === 'published',
+                }))
+              }}
+              value={eventForm.isPublished ? 'published' : 'draft'}
+            >
+              <option value="draft">Brouillon</option>
+              <option value="published">Publié</option>
+            </select>
           </label>
-          <label className="form-field priority-field" htmlFor="event-priority-admin">
-            <span>Priorité</span>
-            <label className="checkbox-field">
-              <input
-                checked={Boolean(eventForm.isPriority)}
-                id="event-priority-admin"
-                onChange={(event) =>
-                  {
-                    setAdminEventsError('')
-                    setEventForm((current) => ({
-                      ...current,
-                      isPriority: event.currentTarget.checked,
-                    }))
-                  }
-                }
-                type="checkbox"
-              />
-              Mettre en priorité
-            </label>
+          <label className="form-field" htmlFor="event-priority-admin">
+            <span>Mettre en priorité</span>
+            <select
+              id="event-priority-admin"
+              onChange={(event) => {
+                setAdminEventsError('')
+                setEventForm((current) => ({
+                  ...current,
+                  isPriority: event.currentTarget.value === 'true',
+                }))
+              }}
+              value={String(Boolean(eventForm.isPriority))}
+            >
+              <option value="false">Non</option>
+              <option value="true">Oui</option>
+            </select>
           </label>
         </div>
         <div className="class-form-actions">
@@ -1993,41 +1989,37 @@ function AdminEventsPage() {
                   </label>
                 </>
               )}
-              <label className="form-field priority-field">
-                <span>Publication</span>
-                <label className="checkbox-field">
-                  <input
-                    checked={Boolean(eventForm.isPublished)}
-                    onChange={(event) => {
-                      setAdminEventsError('')
-                      setEventForm((current) => ({
-                        ...current,
-                        isPublished: event.currentTarget.checked,
-                      }))
-                    }}
-                    type="checkbox"
-                  />
-                  Publié
-                </label>
+              <label className="form-field">
+                <span>Statut de publication</span>
+                <select
+                  onChange={(event) => {
+                    setAdminEventsError('')
+                    setEventForm((current) => ({
+                      ...current,
+                      isPublished: event.currentTarget.value === 'published',
+                    }))
+                  }}
+                  value={eventForm.isPublished ? 'published' : 'draft'}
+                >
+                  <option value="draft">Brouillon</option>
+                  <option value="published">Publié</option>
+                </select>
               </label>
-              <label className="form-field priority-field">
-                <span>Priorité</span>
-                <label className="checkbox-field">
-                  <input
-                    checked={Boolean(eventForm.isPriority)}
-                    onChange={(event) =>
-                      {
-                        setAdminEventsError('')
-                        setEventForm((current) => ({
-                          ...current,
-                          isPriority: event.currentTarget.checked,
-                        }))
-                      }
-                    }
-                    type="checkbox"
-                  />
-                  Mettre en priorité
-                </label>
+              <label className="form-field">
+                <span>Mettre en priorité</span>
+                <select
+                  onChange={(event) => {
+                    setAdminEventsError('')
+                    setEventForm((current) => ({
+                      ...current,
+                      isPriority: event.currentTarget.value === 'true',
+                    }))
+                  }}
+                  value={String(Boolean(eventForm.isPriority))}
+                >
+                  <option value="false">Non</option>
+                  <option value="true">Oui</option>
+                </select>
               </label>
             </div>
             <div className="class-form-actions">
