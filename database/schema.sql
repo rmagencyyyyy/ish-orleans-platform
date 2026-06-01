@@ -108,6 +108,7 @@ create table if not exists public.events (
   end_time time,
   location text,
   max_participants integer,
+  registrations_enabled boolean default true,
   status text default 'Ouvert',
   is_published boolean default true,
   is_priority boolean default false,
@@ -118,6 +119,7 @@ create table if not exists public.events (
 
 alter table public.events
   add column if not exists image_url text,
+  add column if not exists registrations_enabled boolean default true,
   add column if not exists is_published boolean default true,
   add column if not exists is_priority boolean default false,
   add column if not exists sort_order integer default 0;
@@ -443,8 +445,9 @@ with check (
     select 1
     from public.events
     where events.id = event_id
-      and events.status = 'Ouvert'
+      and events.status in ('Ouvert', 'open', 'published')
       and events.is_published = true
+      and events.registrations_enabled = true
   )
 );
 

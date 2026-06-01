@@ -697,6 +697,10 @@ function eventIsFull(eventItem, registrationsCount = 0) {
   return remaining !== null && remaining <= 0
 }
 
+function eventRegistrationsAreEnabled(eventItem) {
+  return eventItem.registrationsEnabled !== false
+}
+
 function eventIsOpen(eventItem) {
   return ['open', 'Ouvert', 'published'].includes(eventItem.status)
 }
@@ -733,10 +737,6 @@ function EventsPublicPage() {
       getPublishedEvents(),
     ])
     const publishedContent = [...newsItems, ...eventItems].sort((first, second) => {
-      if (first.isPriority !== second.isPriority) {
-        return first.isPriority ? -1 : 1
-      }
-
       const firstDate = first.contentType === 'Actualité' ? first.publishedAt : first.date
       const secondDate = second.contentType === 'Actualité' ? second.publishedAt : second.date
       return String(secondDate || '').localeCompare(String(firstDate || ''))
@@ -764,6 +764,11 @@ function EventsPublicPage() {
 
     if (!selectedEvent || !eventIsOpen(selectedEvent)) {
       setEventError('Les inscriptions sont fermées pour cet événement.')
+      return
+    }
+
+    if (!eventRegistrationsAreEnabled(selectedEvent)) {
+      setEventError('Les inscriptions ne sont pas nécessaires pour cet événement.')
       return
     }
 
@@ -819,22 +824,15 @@ function EventsPublicPage() {
             const isNewsItem = eventItem.contentType === 'Actualité'
             const registrationsCount = eventRegistrationCounts[eventItem.id] || 0
             const remaining = eventRemainingPlaces(eventItem, registrationsCount)
+            const registrationsEnabled = eventRegistrationsAreEnabled(eventItem)
             const isClosed = !isNewsItem && !eventIsOpen(eventItem)
             const isFull = !isNewsItem && eventIsFull(eventItem, registrationsCount)
 
             return (
-              <article className={`event-card ${eventItem.isPriority ? 'priority' : ''}`} key={eventItem.id}>
-                <div className="event-card-badges">
-                  <span className={`status-pill ${isClosed ? 'refusee' : 'validee'}`}>
-                    {isNewsItem ? 'Actualité' : eventStatusLabel(eventItem.status)}
-                  </span>
-                  {eventItem.isPriority ? (
-                    <span className="priority-badge" aria-label="Contenu prioritaire">
-                      <span aria-hidden="true">⭐</span>
-                      Important
-                    </span>
-                  ) : null}
-                </div>
+              <article className="event-card" key={eventItem.id}>
+                <span className={`status-pill ${isClosed ? 'refusee' : 'validee'}`}>
+                  {isNewsItem ? 'Actualité' : eventStatusLabel(eventItem.status)}
+                </span>
                 {eventItem.imageUrl ? (
                   <button
                     aria-label={`Afficher l’image : ${eventItem.title}`}
@@ -875,18 +873,20 @@ function EventsPublicPage() {
                         <dt>Lieu</dt>
                         <dd>{eventItem.location || '-'}</dd>
                       </div>
-                      <div>
-                        <dt>Places</dt>
-                        <dd>
-                          {remaining === null
-                            ? 'Places disponibles'
-                            : `${remaining} place(s) restante(s)`}
-                        </dd>
-                      </div>
+                      {registrationsEnabled ? (
+                        <div>
+                          <dt>Places</dt>
+                          <dd>
+                            {remaining === null
+                              ? 'Places disponibles'
+                              : `${remaining} place(s) restante(s)`}
+                          </dd>
+                        </div>
+                      ) : null}
                     </>
                   ) : null}
                 </dl>
-                {!isNewsItem ? (
+                {!isNewsItem && registrationsEnabled ? (
                   <button
                     className={isClosed || isFull ? 'disabled-event-button' : 'gold-button'}
                     disabled={isClosed || isFull}
@@ -902,6 +902,8 @@ function EventsPublicPage() {
                         ? 'Événement complet'
                         : 'S’inscrire'}
                   </button>
+                ) : !isNewsItem ? (
+                  <p className="event-registration-note">Inscription non nécessaire</p>
                 ) : null}
               </article>
             )

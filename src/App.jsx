@@ -1335,23 +1335,7 @@ function DashboardPage() {
 function adminContentErrorMessage(error) {
   const message = error?.message || 'Impossible d’enregistrer le contenu.'
 
-  if (message.includes('is_priority')) {
-    return (
-      'La colonne is_priority manque dans Supabase pour news/events. ' +
-      'Exécutez database/priority-schema.sql dans Supabase, puis réessayez. ' +
-      `Détail : ${message}`
-    )
-  }
-
   return `Impossible d’enregistrer le contenu. Détail Supabase : ${message}`
-}
-
-function adminContentStatus(contentType, isPublished) {
-  if (contentType === 'Actualité') {
-    return isPublished ? 'published' : 'draft'
-  }
-
-  return isPublished ? 'published' : 'draft'
 }
 
 function contentDateValue(item) {
@@ -1359,10 +1343,6 @@ function contentDateValue(item) {
 }
 
 function sortAdminContent(first, second) {
-  if (first.isPriority !== second.isPriority) {
-    return first.isPriority ? -1 : 1
-  }
-
   return String(contentDateValue(second) || '').localeCompare(
     String(contentDateValue(first) || ''),
   )
@@ -1376,7 +1356,7 @@ function AdminEventsPage() {
     contentType: requestedType === 'news' ? 'Actualité' : 'Événement',
     status: 'published',
     isPublished: true,
-    isPriority: false,
+    registrationsEnabled: true,
     sortOrder: '',
   }
   const [events, setEvents] = useState([])
@@ -1451,16 +1431,17 @@ function AdminEventsPage() {
     setAdminEventsMessage('')
     setAdminEventsError('')
     const contentType = eventForm.contentType || 'Événement'
-    const isPublished = Boolean(eventForm.isPublished)
     const payload = {
       ...eventForm,
       contentType,
       maxParticipants:
         contentType === 'Actualité' ? 0 : Number(eventForm.maxParticipants) || 0,
+      registrationsEnabled:
+        contentType === 'Actualité' ? false : eventForm.registrationsEnabled !== false,
       sortOrder: 0,
-      isPublished,
-      isPriority: Boolean(eventForm.isPriority),
-      status: adminContentStatus(contentType, isPublished),
+      isPublished: true,
+      isPriority: false,
+      status: 'published',
     }
 
     try {
@@ -1496,12 +1477,10 @@ function AdminEventsPage() {
       endTime: eventItem.endTime || '',
       location: eventItem.location || '',
       maxParticipants: String(eventItem.maxParticipants || ''),
-      status: adminContentStatus(
-        eventItem.contentType || 'Événement',
-        eventItem.isPublished !== false,
-      ),
-      isPublished: eventItem.isPublished !== false,
-      isPriority: Boolean(eventItem.isPriority),
+      registrationsEnabled: eventItem.registrationsEnabled !== false,
+      status: 'published',
+      isPublished: true,
+      isPriority: false,
       sortOrder: '',
     })
     setAdminEventsMessage('')
@@ -1517,16 +1496,17 @@ function AdminEventsPage() {
     }
 
     const contentType = eventForm.contentType || editingContent.contentType
-    const isPublished = Boolean(eventForm.isPublished)
     const payload = {
       ...eventForm,
       contentType,
       maxParticipants:
         contentType === 'Actualité' ? 0 : Number(eventForm.maxParticipants) || 0,
+      registrationsEnabled:
+        contentType === 'Actualité' ? false : eventForm.registrationsEnabled !== false,
       sortOrder: 0,
-      isPublished,
-      isPriority: Boolean(eventForm.isPriority),
-      status: adminContentStatus(contentType, isPublished),
+      isPublished: true,
+      isPriority: false,
+      status: 'published',
     }
 
     try {
@@ -1731,42 +1711,25 @@ function AdminEventsPage() {
               value={eventForm.maxParticipants}
             />
           </label>
+          <label className="form-field" htmlFor="event-registrations-admin">
+            <span>Inscriptions à l’événement</span>
+            <select
+              id="event-registrations-admin"
+              onChange={(event) => {
+                setAdminEventsError('')
+                setEventForm((current) => ({
+                  ...current,
+                  registrationsEnabled: event.currentTarget.value === 'true',
+                }))
+              }}
+              value={String(eventForm.registrationsEnabled !== false)}
+            >
+              <option value="true">Activées</option>
+              <option value="false">Désactivées</option>
+            </select>
+          </label>
             </>
           ) : null}
-          <label className="form-field" htmlFor="event-published-admin">
-            <span>Statut de publication</span>
-            <select
-              id="event-published-admin"
-              onChange={(event) => {
-                setAdminEventsError('')
-                setEventForm((current) => ({
-                  ...current,
-                  isPublished: event.currentTarget.value === 'published',
-                }))
-              }}
-              value={eventForm.isPublished ? 'published' : 'draft'}
-            >
-              <option value="draft">Brouillon</option>
-              <option value="published">Publié</option>
-            </select>
-          </label>
-          <label className="form-field" htmlFor="event-priority-admin">
-            <span>Mettre en priorité</span>
-            <select
-              id="event-priority-admin"
-              onChange={(event) => {
-                setAdminEventsError('')
-                setEventForm((current) => ({
-                  ...current,
-                  isPriority: event.currentTarget.value === 'true',
-                }))
-              }}
-              value={String(Boolean(eventForm.isPriority))}
-            >
-              <option value="false">Non</option>
-              <option value="true">Oui</option>
-            </select>
-          </label>
         </div>
         <div className="class-form-actions">
           <button className="btn btn-primary submit-btn" type="submit">
@@ -1791,6 +1754,7 @@ function AdminEventsPage() {
                 <th>Heure</th>
                 <th>Lieu</th>
                 <th>Inscrits</th>
+                <th>Inscriptions</th>
                 <th>Publication</th>
                 <th>Actions</th>
               </tr>
@@ -1819,6 +1783,19 @@ function AdminEventsPage() {
                         : `${eventRegistrationCounts[eventItem.id] ?? registrations.length} / ${
                             eventItem.maxParticipants || '∞'
                           }`}
+                    </td>
+                    <td>
+                      {isNewsItem ? '-' : (
+                        <span
+                          className={`status-pill ${
+                            eventItem.registrationsEnabled !== false ? 'validee' : 'refusee'
+                          }`}
+                        >
+                          {eventItem.registrationsEnabled !== false
+                            ? 'Activées'
+                            : 'Désactivées'}
+                        </span>
+                      )}
                     </td>
                     <td>
                       <span
@@ -1987,40 +1964,24 @@ function AdminEventsPage() {
                     <span>Nombre maximum de participants</span>
                     <input min="0" name="maxParticipants" onChange={handleEventFieldChange} type="number" value={eventForm.maxParticipants} />
                   </label>
+                  <label className="form-field">
+                    <span>Inscriptions à l’événement</span>
+                    <select
+                      onChange={(event) => {
+                        setAdminEventsError('')
+                        setEventForm((current) => ({
+                          ...current,
+                          registrationsEnabled: event.currentTarget.value === 'true',
+                        }))
+                      }}
+                      value={String(eventForm.registrationsEnabled !== false)}
+                    >
+                      <option value="true">Activées</option>
+                      <option value="false">Désactivées</option>
+                    </select>
+                  </label>
                 </>
               )}
-              <label className="form-field">
-                <span>Statut de publication</span>
-                <select
-                  onChange={(event) => {
-                    setAdminEventsError('')
-                    setEventForm((current) => ({
-                      ...current,
-                      isPublished: event.currentTarget.value === 'published',
-                    }))
-                  }}
-                  value={eventForm.isPublished ? 'published' : 'draft'}
-                >
-                  <option value="draft">Brouillon</option>
-                  <option value="published">Publié</option>
-                </select>
-              </label>
-              <label className="form-field">
-                <span>Mettre en priorité</span>
-                <select
-                  onChange={(event) => {
-                    setAdminEventsError('')
-                    setEventForm((current) => ({
-                      ...current,
-                      isPriority: event.currentTarget.value === 'true',
-                    }))
-                  }}
-                  value={String(Boolean(eventForm.isPriority))}
-                >
-                  <option value="false">Non</option>
-                  <option value="true">Oui</option>
-                </select>
-              </label>
             </div>
             <div className="class-form-actions">
               <button className="btn btn-primary submit-btn" type="submit">
