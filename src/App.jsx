@@ -2596,6 +2596,16 @@ function AdminTimetablePage() {
     setImageForm((current) => ({ ...current, [name]: value }))
   }
 
+  async function handleTimetableUpload(event) {
+    const file = event.currentTarget.files?.[0]
+    if (!file) {
+      return
+    }
+
+    const imageUrl = await readFileAsDataUrl(file)
+    setImageForm((current) => ({ ...current, imageUrl }))
+  }
+
   function resetImageForm() {
     setImageForm(emptyTimetableImageForm)
     setEditingImageId(null)
@@ -2611,6 +2621,11 @@ function AdminTimetablePage() {
       title: imageForm.title,
       imageUrl: imageForm.imageUrl,
       isPublished: Boolean(imageForm.isPublished),
+    }
+
+    if (!payload.imageUrl) {
+      setImageError('Veuillez choisir une image.')
+      return
     }
 
     try {
@@ -2699,13 +2714,11 @@ function AdminTimetablePage() {
             />
           </label>
           <label className="form-field field-wide">
-            <span>URL de l’image</span>
+            <span>Image emploi du temps</span>
             <input
-              name="imageUrl"
-              onChange={handleImageFieldChange}
-              required
-              type="url"
-              value={imageForm.imageUrl}
+              accept="image/*"
+              onChange={handleTimetableUpload}
+              type="file"
             />
           </label>
           <label className="form-field">
@@ -2737,7 +2750,7 @@ function AdminTimetablePage() {
         </div>
         <div className="class-form-actions">
           <button className="btn btn-primary submit-btn" type="submit">
-            {editingImageId ? 'Enregistrer les modifications' : 'Ajouter l’image'}
+            {editingImageId ? 'Enregistrer les modifications' : 'Publier'}
           </button>
           {editingImageId ? (
             <button onClick={resetImageForm} type="button">

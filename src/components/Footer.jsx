@@ -31,6 +31,11 @@ function Footer() {
         <p>06 52 71 59 21</p>
         <p>ishorleans@gmail.com</p>
       </div>
+      <div className="footer-admin-row">
+        <Link className="footer-admin-link" to="/admin/login">
+          Admin
+        </Link>
+      </div>
     </footer>
   )
 }

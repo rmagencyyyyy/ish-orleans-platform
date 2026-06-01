@@ -621,6 +621,25 @@
   background: #ffffff;
 }
 
+.footer-admin-row {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: flex-end;
+  border-top: 1px solid rgba(220, 235, 228, 0.12);
+  padding-top: 12px;
+}
+
+.home-footer .footer-admin-link {
+  margin-top: 0;
+  color: rgba(220, 235, 228, 0.46);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.home-footer .footer-admin-link:hover {
+  color: rgba(220, 235, 228, 0.78);
+}
+
 .whatsapp-button {
   position: fixed;
   right: 22px;
