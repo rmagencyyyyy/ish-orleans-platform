@@ -1,17 +1,16 @@
 import { Link } from 'react-router-dom'
+import ishLogo from '../assets/ish-logo.png'
 
 function Footer() {
   return (
     <footer className="home-footer">
       <div>
         <Link className="home-brand footer-brand" to="/">
-          <span className="home-brand-mark" aria-hidden="true">
-            ✦
-          </span>
-          <span>
-            <strong>ISH Orléans</strong>
-            <small>Institut des Sciences Humaines</small>
-          </span>
+          <img
+            alt="ISH Orléans - Institut des Sciences Humaines d’Orléans"
+            className="home-brand-logo footer-brand-logo"
+            src={ishLogo}
+          />
         </Link>
         <p>
           Un cadre structuré et bienveillant pour l’apprentissage de la langue
@@ -29,14 +28,8 @@ function Footer() {
       <div>
         <h3>Contact</h3>
         <p>Orléans, France</p>
-        <p>+33 X XX XX XX XX</p>
-        <p>contact@ish-orleans.fr</p>
-      </div>
-      <div>
-        <h3>Horaires</h3>
-        <p>Samedi : 9h – 17h</p>
-        <p>Dimanche : 9h – 13h</p>
-        <p>En semaine : sur rendez-vous</p>
+        <p>06 52 71 59 21</p>
+        <p>ishorleans@gmail.com</p>
       </div>
     </footer>
   )

@@ -35,10 +35,12 @@ import {
   addGalleryImage,
   addNews,
   addProgram,
+  addTimetableImage,
   deleteEvent,
   deleteGalleryImage,
   deleteNews,
   deleteProgram,
+  deleteTimetableImage,
   getEvents,
   getEventRegistrationCount,
   getEventRegistrations,
@@ -46,12 +48,15 @@ import {
   getGalleryImages,
   getNews,
   getPrograms,
+  getTimetableImages,
   updateEvent,
   updateGalleryImage,
   updateNews,
   updateProgram,
+  updateTimetableImage,
 } from './services/contentService'
 import { getSubjectColor, subjectColors } from './config/subjectColors'
+import ishLogo from './assets/ish-logo.png'
 import {
   AboutPage,
   ContactPage,
@@ -62,6 +67,7 @@ import {
   HomePage,
   InscriptionPage,
   PublicLayout,
+  TimetablePublicPage,
 } from './pages/PublicPages'
 import {
   clearUserSession,
@@ -89,6 +95,7 @@ const adminNavItems = [
   { label: 'Actualités / Événements', path: '/admin/events' },
   { label: 'Galerie', path: '/admin/gallery' },
   { label: 'Programmes', path: '/admin/programs' },
+  { label: 'Emploi du temps', path: '/admin/timetable' },
 ]
 
 function ProtectedRoute({ allowedRole }) {
@@ -241,8 +248,11 @@ function Login() {
     <main className="admin-login-page">
       <form className="admin-login-card" onSubmit={handleLogin}>
         <Link className="brand" to="/">
-          <span className="brand-mark">ISH</span>
-          <span>ISH Orléans</span>
+          <img
+            alt="ISH Orléans - Institut des Sciences Humaines d’Orléans"
+            className="login-brand-logo"
+            src={ishLogo}
+          />
         </Link>
         <div>
           <p className="section-kicker">Administration</p>
@@ -1197,19 +1207,22 @@ function DashboardPage() {
     eventRegistrationsCount: 0,
     galleryImagesCount: 0,
     publishedProgramsCount: 0,
+    timetableImageCount: 0,
+    publishedTimetableImageCount: 0,
   })
 
   useEffect(() => {
     let isMounted = true
 
     async function loadDashboardStats() {
-      const [newsItems, eventItems, eventRegistrations, galleryImages, programs] =
+      const [newsItems, eventItems, eventRegistrations, galleryImages, programs, timetableImages] =
         await Promise.all([
           getNews(),
           getEvents(),
           getEventRegistrations(),
           getGalleryImages(),
           getPrograms(),
+          getTimetableImages(),
         ])
 
       if (isMounted) {
@@ -1221,6 +1234,8 @@ function DashboardPage() {
           eventRegistrationsCount: eventRegistrations.length,
           galleryImagesCount: galleryImages.length,
           publishedProgramsCount: programs.filter((item) => item.isPublished).length,
+          timetableImageCount: timetableImages.length,
+          publishedTimetableImageCount: timetableImages.filter((item) => item.isPublished).length,
         })
       }
     }
@@ -1274,6 +1289,11 @@ function DashboardPage() {
           <strong>{stats.publishedProgramsCount}</strong>
           <p>Programmes visibles sur le site public.</p>
         </article>
+        <article className="admin-card">
+          <span>Images emploi du temps</span>
+          <strong>{stats.timetableImageCount}</strong>
+          <p>{stats.publishedTimetableImageCount} image(s) publiée(s).</p>
+        </article>
       </div>
 
       <section className="admin-quick-actions" aria-labelledby="quick-actions-title">
@@ -1298,6 +1318,10 @@ function DashboardPage() {
             <span>Gérer les programmes</span>
             <strong>Modifier les programmes publiés</strong>
           </Link>
+          <Link className="quick-action-card" to="/admin/timetable">
+            <span>Gérer l’emploi du temps</span>
+            <strong>Publier l’image du planning</strong>
+          </Link>
           <Link className="quick-action-card" to="/">
             <span>Voir le site public</span>
             <strong>Contrôler les contenus visibles</strong>
@@ -1316,6 +1340,7 @@ function AdminEventsPage() {
     contentType: requestedType === 'news' ? 'Actualité' : 'Événement',
     status: requestedType === 'news' ? 'published' : 'open',
     isPublished: true,
+    isPriority: false,
     sortOrder: '',
   }
   const [events, setEvents] = useState([])
@@ -1394,6 +1419,7 @@ function AdminEventsPage() {
         contentType === 'Actualité' ? 0 : Number(eventForm.maxParticipants) || 0,
       sortOrder: Number(eventForm.sortOrder) || 0,
       isPublished: Boolean(eventForm.isPublished),
+      isPriority: Boolean(eventForm.isPriority),
       status: eventForm.status || (contentType === 'Actualité' ? 'published' : 'open'),
     }
 
@@ -1432,6 +1458,7 @@ function AdminEventsPage() {
       maxParticipants: String(eventItem.maxParticipants || ''),
       status: eventItem.status || (eventItem.contentType === 'Actualité' ? 'published' : 'open'),
       isPublished: eventItem.isPublished !== false,
+      isPriority: Boolean(eventItem.isPriority),
       sortOrder: String(eventItem.sortOrder || ''),
     })
     setAdminEventsMessage('')
@@ -1451,6 +1478,7 @@ function AdminEventsPage() {
         contentType === 'Actualité' ? 0 : Number(eventForm.maxParticipants) || 0,
       sortOrder: Number(eventForm.sortOrder) || 0,
       isPublished: Boolean(eventForm.isPublished),
+      isPriority: Boolean(eventForm.isPriority),
     }
 
     try {
@@ -1703,6 +1731,23 @@ function AdminEventsPage() {
               <option value="true">true</option>
               <option value="false">false</option>
             </select>
+          </label>
+          <label className="form-field priority-field" htmlFor="event-priority-admin">
+            <span>Priorité</span>
+            <label className="checkbox-field">
+              <input
+                checked={Boolean(eventForm.isPriority)}
+                id="event-priority-admin"
+                onChange={(event) =>
+                  setEventForm((current) => ({
+                    ...current,
+                    isPriority: event.currentTarget.checked,
+                  }))
+                }
+                type="checkbox"
+              />
+              Mettre en priorité
+            </label>
           </label>
           <label className="form-field" htmlFor="event-sort-admin">
             <span>Ordre d’affichage</span>
@@ -1959,6 +2004,22 @@ function AdminEventsPage() {
                   <option value="true">true</option>
                   <option value="false">false</option>
                 </select>
+              </label>
+              <label className="form-field priority-field">
+                <span>Priorité</span>
+                <label className="checkbox-field">
+                  <input
+                    checked={Boolean(eventForm.isPriority)}
+                    onChange={(event) =>
+                      setEventForm((current) => ({
+                        ...current,
+                        isPriority: event.currentTarget.checked,
+                      }))
+                    }
+                    type="checkbox"
+                  />
+                  Mettre en priorité
+                </label>
               </label>
               <label className="form-field">
                 <span>sort_order</span>
@@ -2509,6 +2570,244 @@ function AdminProgramsPage() {
   )
 }
 
+const emptyTimetableImageForm = {
+  title: '',
+  imageUrl: '',
+  isPublished: true,
+}
+
+function AdminTimetablePage() {
+  const [images, setImages] = useState([])
+  const [imageForm, setImageForm] = useState(emptyTimetableImageForm)
+  const [editingImageId, setEditingImageId] = useState(null)
+  const [imageMessage, setImageMessage] = useState('')
+  const [imageError, setImageError] = useState('')
+
+  async function refreshTimetableImages() {
+    setImages(await getTimetableImages())
+  }
+
+  useEffect(() => {
+    refreshTimetableImages()
+  }, [])
+
+  function handleImageFieldChange(event) {
+    const { name, value } = event.currentTarget
+    setImageForm((current) => ({ ...current, [name]: value }))
+  }
+
+  function resetImageForm() {
+    setImageForm(emptyTimetableImageForm)
+    setEditingImageId(null)
+    setImageError('')
+  }
+
+  async function handleImageSubmit(event) {
+    event.preventDefault()
+    setImageMessage('')
+    setImageError('')
+
+    const payload = {
+      title: imageForm.title,
+      imageUrl: imageForm.imageUrl,
+      isPublished: Boolean(imageForm.isPublished),
+    }
+
+    try {
+      if (editingImageId) {
+        await updateTimetableImage(editingImageId, payload)
+        setImageMessage('L’image de l’emploi du temps a bien été modifiée.')
+      } else {
+        await addTimetableImage(payload)
+        setImageMessage('L’image de l’emploi du temps a bien été ajoutée.')
+      }
+
+      await refreshTimetableImages()
+      resetImageForm()
+    } catch (error) {
+      setImageError(error?.message || 'Impossible d’enregistrer l’image.')
+    }
+  }
+
+  function handleEditImage(image) {
+    setEditingImageId(image.id)
+    setImageForm({
+      title: image.title || '',
+      imageUrl: image.imageUrl || '',
+      isPublished: image.isPublished !== false,
+    })
+    setImageMessage('')
+    setImageError('')
+  }
+
+  async function handleDeleteImage(id) {
+    try {
+      await deleteTimetableImage(id)
+      await refreshTimetableImages()
+      if (editingImageId === id) {
+        resetImageForm()
+      }
+    } catch (error) {
+      setImageError(error?.message || 'Impossible de supprimer l’image.')
+    }
+  }
+
+  async function handleToggleImageStatus(image) {
+    try {
+      await updateTimetableImage(image.id, {
+        ...image,
+        isPublished: !image.isPublished,
+      })
+      await refreshTimetableImages()
+    } catch (error) {
+      setImageError(error?.message || 'Impossible de modifier le statut.')
+    }
+  }
+
+  return (
+    <>
+      <AdminPageHeader
+        title="Emploi du temps"
+        description="Gérez l’image du planning affichée sur le site public."
+      />
+
+      <form className="class-form admin-panel" onSubmit={handleImageSubmit}>
+        <div>
+          <p className="section-kicker">
+            {editingImageId ? 'Modification' : 'Création'}
+          </p>
+          <h2>{editingImageId ? 'Modifier l’image' : 'Ajouter une image'}</h2>
+        </div>
+        {imageMessage ? (
+          <div className="success-message assignment-message" role="status">
+            {imageMessage}
+          </div>
+        ) : null}
+        {imageError ? (
+          <div className="login-error" role="alert">
+            {imageError}
+          </div>
+        ) : null}
+        <div className="class-form-grid">
+          <label className="form-field">
+            <span>Titre</span>
+            <input
+              name="title"
+              onChange={handleImageFieldChange}
+              required
+              value={imageForm.title}
+            />
+          </label>
+          <label className="form-field field-wide">
+            <span>URL de l’image</span>
+            <input
+              name="imageUrl"
+              onChange={handleImageFieldChange}
+              required
+              type="url"
+              value={imageForm.imageUrl}
+            />
+          </label>
+          <label className="form-field">
+            <span>Statut</span>
+            <select
+              name="isPublished"
+              onChange={(event) =>
+                setImageForm((current) => ({
+                  ...current,
+                  isPublished: event.currentTarget.value === 'true',
+                }))
+              }
+              value={String(imageForm.isPublished)}
+            >
+              <option value="true">Publié</option>
+              <option value="false">Masqué</option>
+            </select>
+          </label>
+          {imageForm.imageUrl ? (
+            <div className="form-field field-wide">
+              <span>Aperçu</span>
+              <img
+                alt="Aperçu de l’emploi du temps"
+                className="timetable-admin-preview"
+                src={imageForm.imageUrl}
+              />
+            </div>
+          ) : null}
+        </div>
+        <div className="class-form-actions">
+          <button className="btn btn-primary submit-btn" type="submit">
+            {editingImageId ? 'Enregistrer les modifications' : 'Ajouter l’image'}
+          </button>
+          {editingImageId ? (
+            <button onClick={resetImageForm} type="button">
+              Annuler
+            </button>
+          ) : null}
+        </div>
+      </form>
+
+      {images.length === 0 ? (
+        <div className="admin-empty-state">
+          <h2>Aucune image</h2>
+          <p>L’image publiée apparaîtra sur la page Emploi du temps.</p>
+        </div>
+      ) : (
+        <div className="admin-table-wrap">
+          <table className="admin-table">
+            <thead>
+              <tr>
+                <th>Aperçu</th>
+                <th>Titre</th>
+                <th>Statut</th>
+                <th>Date d’ajout</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {images.map((image) => (
+                <tr key={image.id}>
+                  <td>
+                    <img
+                      alt={image.title || 'Emploi du temps'}
+                      className="gallery-table-image"
+                      src={image.imageUrl}
+                    />
+                  </td>
+                  <td>{image.title}</td>
+                  <td>
+                    <span className={`status-pill ${image.isPublished ? 'validee' : 'refusee'}`}>
+                      {image.isPublished ? 'Publié' : 'Masqué'}
+                    </span>
+                  </td>
+                  <td>{formatDate(image.createdAt)}</td>
+                  <td>
+                    <div className="table-actions">
+                      <button onClick={() => handleEditImage(image)} type="button">
+                        Modifier
+                      </button>
+                      <button onClick={() => handleToggleImageStatus(image)} type="button">
+                        {image.isPublished ? 'Masquer' : 'Publier'}
+                      </button>
+                      <button
+                        className="danger-action"
+                        onClick={() => handleDeleteImage(image.id)}
+                        type="button"
+                      >
+                        Supprimer
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </>
+  )
+}
+
 function App() {
   return (
     <Routes>
@@ -2580,6 +2879,14 @@ function App() {
           </PublicLayout>
         }
       />
+      <Route
+        path="/emploi-du-temps"
+        element={
+          <PublicLayout>
+            <TimetablePublicPage />
+          </PublicLayout>
+        }
+      />
       <Route path="/admin/login" element={<Login />} />
       <Route element={<ProtectedRoute allowedRole="admin" />}>
         <Route path="/admin" element={<AdminLayout />}>
@@ -2594,6 +2901,7 @@ function App() {
           <Route path="events" element={<AdminEventsPage />} />
           <Route path="gallery" element={<AdminGalleryPage />} />
           <Route path="programs" element={<AdminProgramsPage />} />
+          <Route path="timetable" element={<AdminTimetablePage />} />
           <Route path="users" element={<Navigate replace to="/admin/dashboard" />} />
           <Route path="settings" element={<Navigate replace to="/admin/dashboard" />} />
         </Route>

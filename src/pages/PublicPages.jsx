@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   addEventRegistration,
+  getPublishedTimetableImage,
   getPublishedEvents,
   getPublishedGalleryImages,
   getPublishedNews,
@@ -494,7 +495,7 @@ function HomeFinalCta() {
 
 function WhatsAppButton() {
   return (
-    <a className="whatsapp-button" href="https://wa.me/" aria-label="WhatsApp">
+    <a className="whatsapp-button" href="https://wa.me/33652715921" aria-label="WhatsApp">
       💬
     </a>
   )
@@ -731,6 +732,10 @@ function EventsPublicPage() {
       getPublishedEvents(),
     ])
     const publishedContent = [...newsItems, ...eventItems].sort((first, second) => {
+      if (first.isPriority !== second.isPriority) {
+        return first.isPriority ? -1 : 1
+      }
+
       const firstDate = first.contentType === 'Actualité' ? first.publishedAt : first.date
       const secondDate = second.contentType === 'Actualité' ? second.publishedAt : second.date
       return String(secondDate || '').localeCompare(String(firstDate || ''))
@@ -817,10 +822,18 @@ function EventsPublicPage() {
             const isFull = !isNewsItem && eventIsFull(eventItem, registrationsCount)
 
             return (
-              <article className="event-card" key={eventItem.id}>
-                <span className={`status-pill ${isClosed ? 'refusee' : 'validee'}`}>
-                  {isNewsItem ? 'Actualité' : eventStatusLabel(eventItem.status)}
-                </span>
+              <article className={`event-card ${eventItem.isPriority ? 'priority' : ''}`} key={eventItem.id}>
+                <div className="event-card-badges">
+                  <span className={`status-pill ${isClosed ? 'refusee' : 'validee'}`}>
+                    {isNewsItem ? 'Actualité' : eventStatusLabel(eventItem.status)}
+                  </span>
+                  {eventItem.isPriority ? (
+                    <span className="priority-badge" aria-label="Contenu prioritaire">
+                      <span aria-hidden="true">⭐</span>
+                      Prioritaire
+                    </span>
+                  ) : null}
+                </div>
                 {eventItem.imageUrl ? (
                   <img
                     alt={eventItem.title}
@@ -1046,6 +1059,46 @@ function GalleryPublicPage() {
   )
 }
 
+function TimetablePublicPage() {
+  const [timetableImage, setTimetableImage] = useState(null)
+
+  useEffect(() => {
+    let isMounted = true
+
+    async function loadTimetableImage() {
+      const image = await getPublishedTimetableImage()
+      if (isMounted) {
+        setTimetableImage(image)
+      }
+    }
+
+    loadTimetableImage()
+
+    return () => {
+      isMounted = false
+    }
+  }, [])
+
+  return (
+    <section className="timetable-page">
+      <div className="faq-heading">
+        <p className="section-kicker">Planning</p>
+        <h1>Emploi du temps</h1>
+        <p>Consultez le planning des cours proposés par l’ISH Orléans.</p>
+      </div>
+
+      {!timetableImage ? (
+        <div className="events-empty">L’emploi du temps sera bientôt disponible.</div>
+      ) : (
+        <figure className="timetable-image-card">
+          <img alt={timetableImage.title || 'Emploi du temps ISH Orléans'} src={timetableImage.imageUrl} />
+          {timetableImage.title ? <figcaption>{timetableImage.title}</figcaption> : null}
+        </figure>
+      )}
+    </section>
+  )
+}
+
 function PublicLayout({ children }) {
   return (
     <>
@@ -1066,4 +1119,5 @@ export {
   HomePage,
   InscriptionPage,
   PublicLayout,
+  TimetablePublicPage,
 }

@@ -11,6 +11,7 @@ const TABLES = {
   eventRegistrations: 'event_registrations',
   galleryImages: 'gallery_images',
   programs: 'programs',
+  timetableImages: 'timetable_images',
 }
 
 function alertSupabaseError(action, error) {
@@ -72,6 +73,7 @@ function mapNews(row) {
     publishedAt: toDateValue(row.published_at || row.created_at),
     status: row.status || 'Publiée',
     isPublished: row.is_published !== false,
+    isPriority: Boolean(row.is_priority),
     sortOrder: row.sort_order || 0,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -86,6 +88,7 @@ function newsPayload(news) {
     published_at: news.publishedAt || null,
     status: news.status || 'Publiée',
     is_published: news.isPublished !== false,
+    is_priority: Boolean(news.isPriority),
     sort_order: Number(news.sortOrder) || 0,
   }
 }
@@ -104,6 +107,7 @@ function mapEvent(row) {
     maxParticipants: row.max_participants || '',
     status: row.status || 'Ouvert',
     isPublished: row.is_published !== false,
+    isPriority: Boolean(row.is_priority),
     sortOrder: row.sort_order || 0,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -122,6 +126,7 @@ function eventPayload(eventItem) {
     max_participants: Number(eventItem.maxParticipants) || 0,
     status: eventItem.status || 'Ouvert',
     is_published: eventItem.isPublished !== false,
+    is_priority: Boolean(eventItem.isPriority),
     sort_order: Number(eventItem.sortOrder) || 0,
   }
 }
@@ -199,6 +204,25 @@ function programPayload(program) {
     sort_order: Number(program.sortOrder) || 0,
     order_index: Number(program.orderIndex || program.sortOrder) || 0,
     is_published: program.isPublished !== false,
+  }
+}
+
+function mapTimetableImage(row) {
+  return {
+    id: row.id,
+    title: row.title || '',
+    imageUrl: row.image_url || '',
+    isPublished: row.is_published !== false,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  }
+}
+
+function timetableImagePayload(image) {
+  return {
+    title: image.title || '',
+    image_url: image.imageUrl || '',
+    is_published: image.isPublished !== false,
   }
 }
 
@@ -544,4 +568,58 @@ export async function updateProgram(id, program) {
 
 export async function deleteProgram(id) {
   return deleteRow(TABLES.programs, id, 'suppression programme')
+}
+
+export async function getTimetableImages() {
+  return selectRows(
+    TABLES.timetableImages,
+    mapTimetableImage,
+    (query) => query.order('created_at', { ascending: false }),
+    'Emploi du temps chargé depuis Supabase',
+  )
+}
+
+export async function getPublishedTimetableImage() {
+  const images = await selectRows(
+    TABLES.timetableImages,
+    mapTimetableImage,
+    (query) =>
+      query
+        .eq('is_published', true)
+        .order('created_at', { ascending: false })
+        .limit(1),
+    'Image emploi du temps chargée depuis Supabase',
+  )
+
+  return images[0] || null
+}
+
+export async function addTimetableImage(image) {
+  return insertRow(
+    TABLES.timetableImages,
+    timetableImagePayload(image),
+    mapTimetableImage,
+    'ajout image emploi du temps',
+    'Image emploi du temps envoyée dans Supabase',
+  )
+}
+
+export async function updateTimetableImage(id, image) {
+  const updatedImage = await updateRow(
+    TABLES.timetableImages,
+    id,
+    timetableImagePayload(image),
+    mapTimetableImage,
+    'modification image emploi du temps',
+  )
+  console.log('Image emploi du temps modifiée dans Supabase')
+  return updatedImage
+}
+
+export async function deleteTimetableImage(id) {
+  return deleteRow(
+    TABLES.timetableImages,
+    id,
+    'suppression image emploi du temps',
+  )
 }

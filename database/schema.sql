@@ -110,6 +110,7 @@ create table if not exists public.events (
   max_participants integer,
   status text default 'Ouvert',
   is_published boolean default true,
+  is_priority boolean default false,
   sort_order integer default 0,
   created_at timestamptz default now(),
   updated_at timestamptz default now()
@@ -118,6 +119,7 @@ create table if not exists public.events (
 alter table public.events
   add column if not exists image_url text,
   add column if not exists is_published boolean default true,
+  add column if not exists is_priority boolean default false,
   add column if not exists sort_order integer default 0;
 
 create table if not exists public.news (
@@ -127,6 +129,7 @@ create table if not exists public.news (
   image_url text,
   status text default 'Publiée',
   is_published boolean default true,
+  is_priority boolean default false,
   published_at date,
   sort_order integer default 0,
   created_at timestamptz default now(),
@@ -135,6 +138,7 @@ create table if not exists public.news (
 
 alter table public.news
   add column if not exists is_published boolean default true,
+  add column if not exists is_priority boolean default false,
   add column if not exists sort_order integer default 0;
 
 create table if not exists public.event_registrations (
@@ -232,8 +236,10 @@ create index if not exists class_students_registration_id_idx on public.class_st
 create index if not exists class_students_registration_course_id_idx on public.class_students(registration_course_id);
 create index if not exists events_status_date_idx on public.events(status, date);
 create index if not exists events_published_sort_idx on public.events(is_published, sort_order);
+create index if not exists events_priority_date_idx on public.events(is_priority, date);
 create index if not exists news_status_published_at_idx on public.news(status, published_at);
 create index if not exists news_published_sort_idx on public.news(is_published, sort_order);
+create index if not exists news_priority_published_at_idx on public.news(is_priority, published_at);
 create index if not exists event_registrations_event_id_idx on public.event_registrations(event_id);
 create index if not exists gallery_images_published_idx on public.gallery_images(is_published);
 create index if not exists gallery_images_published_sort_idx on public.gallery_images(is_published, sort_order);

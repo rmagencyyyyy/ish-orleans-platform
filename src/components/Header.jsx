@@ -1,9 +1,11 @@
 import { Link, useLocation } from 'react-router-dom'
+import ishLogo from '../assets/ish-logo.png'
 
 const publicMenuItems = [
   { label: 'Accueil', to: '/' },
   { label: 'Actualités', to: '/actualites' },
   { label: 'Programmes', to: '/formations' },
+  { label: 'Emploi du temps', to: '/emploi-du-temps' },
   { label: 'À propos', to: '/a-propos' },
   { label: 'Galerie', to: '/galerie' },
   { label: 'Contact', to: '/contact' },
@@ -28,13 +30,11 @@ function Header() {
   return (
     <header className="home-navbar">
       <Link className="home-brand" to="/">
-        <span className="home-brand-mark" aria-hidden="true">
-          ✦
-        </span>
-        <span>
-          <strong>ISH Orléans</strong>
-          <small>Institut des Sciences Humaines</small>
-        </span>
+        <img
+          alt="ISH Orléans - Institut des Sciences Humaines d’Orléans"
+          className="home-brand-logo"
+          src={ishLogo}
+        />
       </Link>
 
       <nav className="home-nav-menu" aria-label="Navigation principale">
