@@ -1332,6 +1332,42 @@ function DashboardPage() {
   )
 }
 
+function adminContentErrorMessage(error) {
+  const message = error?.message || 'Impossible d’enregistrer le contenu.'
+
+  if (message.includes('is_priority')) {
+    return (
+      'La colonne is_priority manque dans Supabase pour news/events. ' +
+      'Exécutez database/priority-schema.sql dans Supabase, puis réessayez. ' +
+      `Détail : ${message}`
+    )
+  }
+
+  return `Impossible d’enregistrer le contenu. Détail Supabase : ${message}`
+}
+
+function adminContentStatus(contentType, isPublished) {
+  if (contentType === 'Actualité') {
+    return isPublished ? 'published' : 'draft'
+  }
+
+  return isPublished ? 'open' : 'draft'
+}
+
+function contentDateValue(item) {
+  return item.contentType === 'Actualité' ? item.publishedAt : item.date
+}
+
+function sortAdminContent(first, second) {
+  if (first.isPriority !== second.isPriority) {
+    return first.isPriority ? -1 : 1
+  }
+
+  return String(contentDateValue(second) || '').localeCompare(
+    String(contentDateValue(first) || ''),
+  )
+}
+
 function AdminEventsPage() {
   const [searchParams] = useSearchParams()
   const requestedType = searchParams.get('type')
@@ -1352,6 +1388,7 @@ function AdminEventsPage() {
   const [selectedRegistrantsEvent, setSelectedRegistrantsEvent] = useState(null)
   const [selectedRegistrants, setSelectedRegistrants] = useState([])
   const [adminEventsMessage, setAdminEventsMessage] = useState('')
+  const [adminEventsError, setAdminEventsError] = useState('')
   const isNewsForm = eventForm.contentType === 'Actualité'
 
   async function refreshAdminEvents() {
@@ -1368,7 +1405,7 @@ function AdminEventsPage() {
       }),
     )
 
-    setEvents([...newsItems, ...eventItems])
+    setEvents([...newsItems, ...eventItems].sort(sortAdminContent))
     setEventRegistrations(registrations)
     setEventRegistrationCounts(counts)
   }
@@ -1379,12 +1416,12 @@ function AdminEventsPage() {
 
   function handleEventFieldChange(event) {
     const { name, value } = event.currentTarget
+    setAdminEventsError('')
     setEventForm((current) => {
       if (name === 'contentType') {
         return {
           ...current,
           contentType: value,
-          status: value === 'Actualité' ? 'published' : 'open',
         }
       }
 
@@ -1399,6 +1436,7 @@ function AdminEventsPage() {
     }
 
     const imageUrl = await readFileAsDataUrl(file)
+    setAdminEventsError('')
     setEventForm((current) => ({ ...current, imageUrl }))
   }
 
@@ -1411,16 +1449,18 @@ function AdminEventsPage() {
   async function handleEventSubmit(event) {
     event.preventDefault()
     setAdminEventsMessage('')
+    setAdminEventsError('')
     const contentType = eventForm.contentType || 'Événement'
+    const isPublished = Boolean(eventForm.isPublished)
     const payload = {
       ...eventForm,
       contentType,
       maxParticipants:
         contentType === 'Actualité' ? 0 : Number(eventForm.maxParticipants) || 0,
-      sortOrder: Number(eventForm.sortOrder) || 0,
-      isPublished: Boolean(eventForm.isPublished),
+      sortOrder: 0,
+      isPublished,
       isPriority: Boolean(eventForm.isPriority),
-      status: eventForm.status || (contentType === 'Actualité' ? 'published' : 'open'),
+      status: adminContentStatus(contentType, isPublished),
     }
 
     try {
@@ -1437,8 +1477,8 @@ function AdminEventsPage() {
       )
       await refreshAdminEvents()
       resetEventForm()
-    } catch {
-      // contentService logs the Supabase error and shows the alert.
+    } catch (error) {
+      setAdminEventsError(adminContentErrorMessage(error))
     }
   }
 
@@ -1456,29 +1496,37 @@ function AdminEventsPage() {
       endTime: eventItem.endTime || '',
       location: eventItem.location || '',
       maxParticipants: String(eventItem.maxParticipants || ''),
-      status: eventItem.status || (eventItem.contentType === 'Actualité' ? 'published' : 'open'),
+      status: adminContentStatus(
+        eventItem.contentType || 'Événement',
+        eventItem.isPublished !== false,
+      ),
       isPublished: eventItem.isPublished !== false,
       isPriority: Boolean(eventItem.isPriority),
-      sortOrder: String(eventItem.sortOrder || ''),
+      sortOrder: '',
     })
     setAdminEventsMessage('')
+    setAdminEventsError('')
   }
 
   async function handleEditEventSubmit(event) {
     event.preventDefault()
+    setAdminEventsMessage('')
+    setAdminEventsError('')
     if (!editingContent) {
       return
     }
 
     const contentType = eventForm.contentType || editingContent.contentType
+    const isPublished = Boolean(eventForm.isPublished)
     const payload = {
       ...eventForm,
       contentType,
       maxParticipants:
         contentType === 'Actualité' ? 0 : Number(eventForm.maxParticipants) || 0,
-      sortOrder: Number(eventForm.sortOrder) || 0,
-      isPublished: Boolean(eventForm.isPublished),
+      sortOrder: 0,
+      isPublished,
       isPriority: Boolean(eventForm.isPriority),
+      status: adminContentStatus(contentType, isPublished),
     }
 
     try {
@@ -1491,8 +1539,8 @@ function AdminEventsPage() {
       }
       await refreshAdminEvents()
       resetEventForm()
-    } catch {
-      // contentService logs the Supabase error and shows the alert.
+    } catch (error) {
+      setAdminEventsError(adminContentErrorMessage(error))
     }
   }
 
@@ -1507,8 +1555,8 @@ function AdminEventsPage() {
       if (editingEventId === eventItem.id) {
         resetEventForm()
       }
-    } catch {
-      // contentService logs the Supabase error and shows the alert.
+    } catch (error) {
+      setAdminEventsError(adminContentErrorMessage(error))
     }
   }
 
@@ -1525,12 +1573,12 @@ function AdminEventsPage() {
         await updateEvent(eventItem.id, {
           ...eventItem,
           isPublished: !eventItem.isPublished,
-          status: eventItem.isPublished ? 'closed' : 'open',
+          status: eventItem.isPublished ? 'draft' : 'open',
         })
       }
       await refreshAdminEvents()
-    } catch {
-      // contentService logs the Supabase error and shows the alert.
+    } catch (error) {
+      setAdminEventsError(adminContentErrorMessage(error))
     }
   }
 
@@ -1556,6 +1604,11 @@ function AdminEventsPage() {
       {adminEventsMessage ? (
         <div className="success-message assignment-message" role="status">
           {adminEventsMessage}
+        </div>
+      ) : null}
+      {adminEventsError ? (
+        <div className="login-error" role="alert">
+          {adminEventsError}
         </div>
       ) : null}
 
@@ -1597,38 +1650,26 @@ function AdminEventsPage() {
               value={eventForm.description}
             />
           </label>
-          <label className="form-field field-wide" htmlFor="event-image-url-admin">
-            <span>Image URL</span>
+          <label className="form-field" htmlFor="event-image-admin">
+            <span>Télécharger une image</span>
             <input
-              id="event-image-url-admin"
-              name="imageUrl"
-              onChange={handleEventFieldChange}
-              type="url"
-              value={eventForm.imageUrl}
+              accept="image/*"
+              id="event-image-admin"
+              onChange={handleEventImageUpload}
+              type="file"
             />
           </label>
           {isNewsForm ? (
-            <>
-              <label className="form-field" htmlFor="event-publication-date-admin">
-                <span>Date de publication</span>
-                <input
-                  id="event-publication-date-admin"
-                  name="publishedAt"
-                  onChange={handleEventFieldChange}
-                  type="date"
-                  value={eventForm.publishedAt}
-                />
-              </label>
-              <label className="form-field" htmlFor="event-image-admin">
-                <span>Image optionnelle</span>
-                <input
-                  accept="image/*"
-                  id="event-image-admin"
-                  onChange={handleEventImageUpload}
-                  type="file"
-                />
-              </label>
-            </>
+            <label className="form-field" htmlFor="event-publication-date-admin">
+              <span>Date de publication</span>
+              <input
+                id="event-publication-date-admin"
+                name="publishedAt"
+                onChange={handleEventFieldChange}
+                type="date"
+                value={eventForm.publishedAt}
+              />
+            </label>
           ) : null}
           {eventForm.imageUrl ? (
             <img
@@ -1692,45 +1733,23 @@ function AdminEventsPage() {
           </label>
             </>
           ) : null}
-          <label className="form-field" htmlFor="event-status-admin">
-            <span>Statut</span>
-            <select
-              id="event-status-admin"
-              name="status"
-              onChange={handleEventFieldChange}
-              value={eventForm.status}
-            >
-              {isNewsForm ? (
-                <>
-                  <option value="published">published</option>
-                  <option value="draft">draft</option>
-                </>
-              ) : (
-                <>
-                  <option value="open">open</option>
-                  <option value="closed">closed</option>
-                  <option value="draft">draft</option>
-                  <option value="published">published</option>
-                </>
-              )}
-            </select>
-          </label>
-          <label className="form-field" htmlFor="event-published-admin">
-            <span>Publié</span>
-            <select
-              id="event-published-admin"
-              name="isPublished"
-              onChange={(event) =>
-                setEventForm((current) => ({
-                  ...current,
-                  isPublished: event.currentTarget.value === 'true',
-                }))
-              }
-              value={String(eventForm.isPublished)}
-            >
-              <option value="true">true</option>
-              <option value="false">false</option>
-            </select>
+          <label className="form-field priority-field" htmlFor="event-published-admin">
+            <span>Publication</span>
+            <label className="checkbox-field">
+              <input
+                checked={Boolean(eventForm.isPublished)}
+                id="event-published-admin"
+                onChange={(event) => {
+                  setAdminEventsError('')
+                  setEventForm((current) => ({
+                    ...current,
+                    isPublished: event.currentTarget.checked,
+                  }))
+                }}
+                type="checkbox"
+              />
+              Publié
+            </label>
           </label>
           <label className="form-field priority-field" htmlFor="event-priority-admin">
             <span>Priorité</span>
@@ -1739,25 +1758,18 @@ function AdminEventsPage() {
                 checked={Boolean(eventForm.isPriority)}
                 id="event-priority-admin"
                 onChange={(event) =>
-                  setEventForm((current) => ({
-                    ...current,
-                    isPriority: event.currentTarget.checked,
-                  }))
+                  {
+                    setAdminEventsError('')
+                    setEventForm((current) => ({
+                      ...current,
+                      isPriority: event.currentTarget.checked,
+                    }))
+                  }
                 }
                 type="checkbox"
               />
               Mettre en priorité
             </label>
-          </label>
-          <label className="form-field" htmlFor="event-sort-admin">
-            <span>Ordre d’affichage</span>
-            <input
-              id="event-sort-admin"
-              name="sortOrder"
-              onChange={handleEventFieldChange}
-              type="number"
-              value={eventForm.sortOrder}
-            />
           </label>
         </div>
         <div className="class-form-actions">
@@ -1783,7 +1795,6 @@ function AdminEventsPage() {
                 <th>Heure</th>
                 <th>Lieu</th>
                 <th>Inscrits</th>
-                <th>Statut</th>
                 <th>Publication</th>
                 <th>Actions</th>
               </tr>
@@ -1812,16 +1823,6 @@ function AdminEventsPage() {
                         : `${eventRegistrationCounts[eventItem.id] ?? registrations.length} / ${
                             eventItem.maxParticipants || '∞'
                           }`}
-                    </td>
-                    <td>
-                      <span
-                        className={`status-pill ${statusClass(
-                          eventItem.status,
-                          eventItem.isPublished,
-                        )}`}
-                      >
-                        {statusLabel(eventItem.status)}
-                      </span>
                     </td>
                     <td>
                       <span
@@ -1938,6 +1939,11 @@ function AdminEventsPage() {
                 Fermer
               </button>
             </div>
+            {adminEventsError ? (
+              <div className="login-error" role="alert">
+                {adminEventsError}
+              </div>
+            ) : null}
             <div className="class-form-grid">
               <label className="form-field">
                 <span>Titre</span>
@@ -1947,10 +1953,17 @@ function AdminEventsPage() {
                 <span>Description</span>
                 <textarea name="description" onChange={handleEventFieldChange} value={eventForm.description} />
               </label>
-              <label className="form-field field-wide">
-                <span>Image URL</span>
-                <input name="imageUrl" onChange={handleEventFieldChange} type="url" value={eventForm.imageUrl} />
+              <label className="form-field">
+                <span>Télécharger une image</span>
+                <input accept="image/*" onChange={handleEventImageUpload} type="file" />
               </label>
+              {eventForm.imageUrl ? (
+                <img
+                  alt="Aperçu du contenu"
+                  className="gallery-admin-preview"
+                  src={eventForm.imageUrl}
+                />
+              ) : null}
               {eventForm.contentType === 'Actualité' ? (
                 <label className="form-field">
                   <span>Date de publication</span>
@@ -1980,30 +1993,22 @@ function AdminEventsPage() {
                   </label>
                 </>
               )}
-              <label className="form-field">
-                <span>Statut</span>
-                <select name="status" onChange={handleEventFieldChange} value={eventForm.status}>
-                  <option value="open">open</option>
-                  <option value="closed">closed</option>
-                  <option value="draft">draft</option>
-                  <option value="published">published</option>
-                </select>
-              </label>
-              <label className="form-field">
-                <span>is_published</span>
-                <select
-                  name="isPublished"
-                  onChange={(event) =>
-                    setEventForm((current) => ({
-                      ...current,
-                      isPublished: event.currentTarget.value === 'true',
-                    }))
-                  }
-                  value={String(eventForm.isPublished)}
-                >
-                  <option value="true">true</option>
-                  <option value="false">false</option>
-                </select>
+              <label className="form-field priority-field">
+                <span>Publication</span>
+                <label className="checkbox-field">
+                  <input
+                    checked={Boolean(eventForm.isPublished)}
+                    onChange={(event) => {
+                      setAdminEventsError('')
+                      setEventForm((current) => ({
+                        ...current,
+                        isPublished: event.currentTarget.checked,
+                      }))
+                    }}
+                    type="checkbox"
+                  />
+                  Publié
+                </label>
               </label>
               <label className="form-field priority-field">
                 <span>Priorité</span>
@@ -2011,19 +2016,18 @@ function AdminEventsPage() {
                   <input
                     checked={Boolean(eventForm.isPriority)}
                     onChange={(event) =>
-                      setEventForm((current) => ({
-                        ...current,
-                        isPriority: event.currentTarget.checked,
-                      }))
+                      {
+                        setAdminEventsError('')
+                        setEventForm((current) => ({
+                          ...current,
+                          isPriority: event.currentTarget.checked,
+                        }))
+                      }
                     }
                     type="checkbox"
                   />
                   Mettre en priorité
                 </label>
-              </label>
-              <label className="form-field">
-                <span>sort_order</span>
-                <input name="sortOrder" onChange={handleEventFieldChange} type="number" value={eventForm.sortOrder} />
               </label>
             </div>
             <div className="class-form-actions">

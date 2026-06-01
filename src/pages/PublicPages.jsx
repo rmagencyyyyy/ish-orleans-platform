@@ -830,7 +830,7 @@ function EventsPublicPage() {
                   {eventItem.isPriority ? (
                     <span className="priority-badge" aria-label="Contenu prioritaire">
                       <span aria-hidden="true">⭐</span>
-                      Prioritaire
+                      Important
                     </span>
                   ) : null}
                 </div>

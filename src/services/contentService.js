@@ -329,7 +329,6 @@ export async function getNews() {
     mapNews,
     (query) =>
       query
-        .order('sort_order', { ascending: true })
         .order('published_at', { ascending: false }),
     'Actualités chargées depuis Supabase',
   )
@@ -342,8 +341,7 @@ export async function getPublishedNews() {
     (query) =>
       query
         .eq('is_published', true)
-        .eq('status', 'Publiée')
-        .order('sort_order', { ascending: true })
+        .in('status', ['published', 'Publiée'])
         .order('published_at', { ascending: false }),
     'Actualités chargées depuis Supabase',
   )
@@ -380,7 +378,7 @@ export async function getEvents() {
     TABLES.events,
     mapEvent,
     (query) =>
-      query.order('sort_order', { ascending: true }).order('date', { ascending: true }),
+      query.order('date', { ascending: false }),
     'Événements chargés depuis Supabase',
   )
 }
@@ -392,7 +390,6 @@ export async function getPublishedEvents() {
     (query) =>
       query
         .eq('is_published', true)
-        .order('sort_order', { ascending: true })
         .order('date', { ascending: true }),
     'Événements chargés depuis Supabase',
   )
