@@ -2,12 +2,12 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   addEventRegistration,
+  getEventRegistrationsSummary,
   getPublishedTimetableImage,
-  getPublishedEvents,
+  getPublishedEventsPreview,
   getPublishedGalleryImages,
-  getPublishedNews,
+  getPublishedNewsPreview,
   getPublishedPrograms,
-  getEventRegistrationsByEventId,
 } from '../services/contentService'
 import { sendRegistrationRequest } from '../services/registrationRequestApi'
 import Footer from '../components/Footer'
@@ -678,10 +678,6 @@ function formatDate(date) {
   return new Date(date).toLocaleDateString('fr-FR')
 }
 
-async function eventRegistrationsCount(eventId) {
-  return (await getEventRegistrationsByEventId(eventId)).length
-}
-
 function eventRemainingPlaces(eventItem, registrationsCount = 0) {
   const maxParticipants = Number(eventItem.maxParticipants) || 0
 
@@ -698,7 +694,7 @@ function eventIsFull(eventItem, registrationsCount = 0) {
 }
 
 function eventRegistrationsAreEnabled(eventItem) {
-  return eventItem.registrationsEnabled !== false
+  return eventItem?.registrationsEnabled !== false
 }
 
 function eventIsOpen(eventItem) {
@@ -730,27 +726,48 @@ function EventsPublicPage() {
   })
   const [eventMessage, setEventMessage] = useState('')
   const [eventError, setEventError] = useState('')
+  const [eventsLoading, setEventsLoading] = useState(true)
+  const [eventsLoadError, setEventsLoadError] = useState('')
 
   async function refreshEvents() {
-    const [newsItems, eventItems] = await Promise.all([
-      getPublishedNews(),
-      getPublishedEvents(),
-    ])
-    const publishedContent = [...newsItems, ...eventItems].sort((first, second) => {
-      const firstDate = first.contentType === 'Actualité' ? first.publishedAt : first.date
-      const secondDate = second.contentType === 'Actualité' ? second.publishedAt : second.date
-      return String(secondDate || '').localeCompare(String(firstDate || ''))
-    })
-    const counts = {}
+    setEventsLoading(true)
+    setEventsLoadError('')
 
-    await Promise.all(
-      eventItems.map(async (eventItem) => {
-        counts[eventItem.id] = await eventRegistrationsCount(eventItem.id)
-      }),
-    )
+    try {
+      const [newsItems, eventItems, registrations] = await Promise.all([
+        getPublishedNewsPreview({ silent: true, throwOnError: true }),
+        getPublishedEventsPreview({ silent: true, throwOnError: true }),
+        getEventRegistrationsSummary({ silent: true, throwOnError: true }),
+      ])
+      const publishedContent = [...newsItems, ...eventItems].sort((first, second) => {
+        const firstDate = first.contentType === 'Actualité' ? first.publishedAt : first.date
+        const secondDate = second.contentType === 'Actualité' ? second.publishedAt : second.date
+        return String(secondDate || '').localeCompare(String(firstDate || ''))
+      })
+      const counts = {}
 
-    setEvents(publishedContent)
-    setEventRegistrationCounts(counts)
+      registrations.forEach((registration) => {
+        const eventId = registration?.eventId
+
+        if (!eventId) {
+          return
+        }
+
+        counts[eventId] = (counts[eventId] || 0) + 1
+      })
+
+      setEvents(publishedContent)
+      setEventRegistrationCounts(counts)
+    } catch (error) {
+      console.error('Erreur chargement actualités', error)
+      setEvents([])
+      setEventRegistrationCounts({})
+      setEventsLoadError(
+        error?.message || 'Impossible de charger les actualités pour le moment.',
+      )
+    } finally {
+      setEventsLoading(false)
+    }
   }
 
   useEffect(() => {
@@ -758,11 +775,13 @@ function EventsPublicPage() {
   }, [])
 
   async function handleEventRegistrationSubmit(event) {
-    event.preventDefault()
+    if (event?.preventDefault) {
+      event.preventDefault()
+    }
     setEventMessage('')
     setEventError('')
 
-    if (!selectedEvent || !eventIsOpen(selectedEvent)) {
+    if (!selectedEvent?.id || !eventIsOpen(selectedEvent)) {
       setEventError('Les inscriptions sont fermées pour cet événement.')
       return
     }
@@ -814,7 +833,15 @@ function EventsPublicPage() {
         </div>
       ) : null}
 
-      {events.length === 0 ? (
+      {eventsLoading ? (
+        <div className="events-empty" role="status">
+          Chargement des actualités…
+        </div>
+      ) : eventsLoadError ? (
+        <div className="events-empty" role="alert">
+          {eventsLoadError}
+        </div>
+      ) : events.length === 0 ? (
         <div className="events-empty">
           Aucune actualité n’est publiée pour le moment.
         </div>
@@ -827,35 +854,46 @@ function EventsPublicPage() {
             const registrationsEnabled = eventRegistrationsAreEnabled(eventItem)
             const isClosed = !isNewsItem && !eventIsOpen(eventItem)
             const isFull = !isNewsItem && eventIsFull(eventItem, registrationsCount)
+            const cardBadgeLabel = isNewsItem ? 'Actualité' : eventStatusLabel(eventItem.status)
 
             return (
               <article className="event-card" key={eventItem.id}>
-                <span className={`status-pill ${isClosed ? 'refusee' : 'validee'}`}>
-                  {isNewsItem ? 'Actualité' : eventStatusLabel(eventItem.status)}
-                </span>
-                {eventItem.imageUrl ? (
-                  <button
-                    aria-label={`Afficher l’image : ${eventItem.title}`}
-                    className="event-card-image-button"
-                    onClick={() =>
-                      setSelectedContentImage({
-                        title: eventItem.title,
-                        imageUrl: eventItem.imageUrl,
-                        type: isNewsItem ? 'Actualité' : 'Événement',
-                      })
-                    }
-                    type="button"
-                  >
-                    <img
-                      alt={eventItem.title}
-                      className="event-card-image"
-                      src={eventItem.imageUrl}
-                    />
-                  </button>
-                ) : null}
-                <h2>{eventItem.title}</h2>
-                <p>{eventItem.description}</p>
-                <dl>
+                <div className={`event-card-media ${eventItem.imageUrl ? '' : 'event-card-media-empty'}`}>
+                  <span className={`status-pill ${isClosed ? 'refusee' : 'validee'} event-card-badge`}>
+                    {cardBadgeLabel}
+                  </span>
+                  {eventItem.imageUrl ? (
+                    <button
+                      aria-label={`Afficher l’image : ${eventItem.title}`}
+                      className="event-card-image-button"
+                      onClick={() =>
+                        setSelectedContentImage({
+                          title: eventItem.title,
+                          imageUrl: eventItem.imageUrl,
+                          type: isNewsItem ? 'Actualité' : 'Événement',
+                        })
+                      }
+                      type="button"
+                    >
+                      <img
+                        alt={eventItem.title}
+                        className="event-card-image"
+                        decoding="async"
+                        loading="lazy"
+                        sizes="(max-width: 900px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                        src={eventItem.imageUrl}
+                      />
+                    </button>
+                  ) : (
+                    <div aria-hidden="true" className="event-card-placeholder">
+                      <span>{isNewsItem ? 'Actualité' : 'Événement'}</span>
+                    </div>
+                  )}
+                </div>
+                <div className="event-card-body">
+                  <h2>{eventItem.title}</h2>
+                  <p>{eventItem.description}</p>
+                  <dl>
                   <div>
                     <dt>{isNewsItem ? 'Publication' : 'Date'}</dt>
                     <dd>{formatDate(isNewsItem ? eventItem.publishedAt : eventItem.date)}</dd>
@@ -885,26 +923,27 @@ function EventsPublicPage() {
                       ) : null}
                     </>
                   ) : null}
-                </dl>
-                {!isNewsItem && registrationsEnabled ? (
-                  <button
-                    className={isClosed || isFull ? 'disabled-event-button' : 'gold-button'}
-                    disabled={isClosed || isFull}
-                    onClick={() => {
-                      setEventError('')
-                      setSelectedEvent(eventItem)
-                    }}
-                    type="button"
-                  >
-                    {isClosed
-                      ? 'Inscriptions fermées'
-                      : isFull
-                        ? 'Événement complet'
-                        : 'S’inscrire'}
-                  </button>
-                ) : !isNewsItem ? (
-                  <p className="event-registration-note">Inscription non nécessaire</p>
-                ) : null}
+                  </dl>
+                  {!isNewsItem && registrationsEnabled ? (
+                    <button
+                      className={isClosed || isFull ? 'disabled-event-button' : 'gold-button'}
+                      disabled={isClosed || isFull}
+                      onClick={() => {
+                        setEventError('')
+                        setSelectedEvent(eventItem)
+                      }}
+                      type="button"
+                    >
+                      {isClosed
+                        ? 'Inscriptions fermées'
+                        : isFull
+                          ? 'Événement complet'
+                          : 'S’inscrire'}
+                    </button>
+                  ) : !isNewsItem ? (
+                    <p className="event-registration-note">Inscription non nécessaire</p>
+                  ) : null}
+                </div>
               </article>
             )
           })}
@@ -928,9 +967,13 @@ function EventsPublicPage() {
                 {eventError}
               </div>
             ) : null}
+            {!eventRegistrationsAreEnabled(selectedEvent) ? (
+              <p className="event-registration-note">Inscription non nécessaire</p>
+            ) : null}
             <label className="form-field" htmlFor="event-last-name">
               <span>Nom</span>
               <input
+                disabled={!eventRegistrationsAreEnabled(selectedEvent)}
                 id="event-last-name"
                 onChange={(event) => {
                   const { value } = event.currentTarget
@@ -946,6 +989,7 @@ function EventsPublicPage() {
             <label className="form-field" htmlFor="event-first-name">
               <span>Prénom</span>
               <input
+                disabled={!eventRegistrationsAreEnabled(selectedEvent)}
                 id="event-first-name"
                 onChange={(event) => {
                   const { value } = event.currentTarget
@@ -961,6 +1005,7 @@ function EventsPublicPage() {
             <label className="form-field" htmlFor="event-age">
               <span>Âge</span>
               <input
+                disabled={!eventRegistrationsAreEnabled(selectedEvent)}
                 id="event-age"
                 min="0"
                 onChange={(event) => {
@@ -974,7 +1019,11 @@ function EventsPublicPage() {
                 value={eventForm.age}
               />
             </label>
-            <button className="btn btn-primary submit-btn" type="submit">
+            <button
+              className="btn btn-primary submit-btn"
+              disabled={!eventRegistrationsAreEnabled(selectedEvent)}
+              type="submit"
+            >
               Valider mon inscription
             </button>
           </form>

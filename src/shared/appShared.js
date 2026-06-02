@@ -127,10 +127,65 @@ function userIsAuthenticated(role) {
   return role ? session.role === role : true
 }
 
-function readFileAsDataUrl(file) {
+function readFileAsDataUrl(file, options = {}) {
+  if (!file || !String(file.type || '').startsWith('image/')) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => resolve(reader.result)
+      reader.onerror = reject
+      reader.readAsDataURL(file)
+    })
+  }
+
+  const {
+    maxWidth = 1200,
+    quality = 0.78,
+    outputType = 'image/jpeg',
+  } = options
+
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
-    reader.onload = () => resolve(reader.result)
+
+    reader.onload = () => {
+      const image = new Image()
+
+      image.onload = () => {
+        const width = image.width || 0
+        const height = image.height || 0
+
+        if (!width || !height) {
+          resolve(reader.result)
+          return
+        }
+
+        const ratio = Math.min(1, maxWidth / width)
+        const targetWidth = Math.max(1, Math.round(width * ratio))
+        const targetHeight = Math.max(1, Math.round(height * ratio))
+        const canvas = document.createElement('canvas')
+
+        canvas.width = targetWidth
+        canvas.height = targetHeight
+
+        const context = canvas.getContext('2d')
+        if (!context) {
+          resolve(reader.result)
+          return
+        }
+
+        context.drawImage(image, 0, 0, targetWidth, targetHeight)
+
+        try {
+          const compressed = canvas.toDataURL(outputType, quality)
+          resolve(compressed || reader.result)
+        } catch (error) {
+          reject(error)
+        }
+      }
+
+      image.onerror = () => resolve(reader.result)
+      image.src = String(reader.result || '')
+    }
+
     reader.onerror = reject
     reader.readAsDataURL(file)
   })

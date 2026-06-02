@@ -1348,6 +1348,10 @@ function sortAdminContent(first, second) {
   )
 }
 
+function normalizeEventRegistrationsEnabled(eventItem) {
+  return eventItem?.registrationsEnabled !== false
+}
+
 function AdminEventsPage() {
   const [searchParams] = useSearchParams()
   const requestedType = searchParams.get('type')
@@ -1559,6 +1563,87 @@ function AdminEventsPage() {
       await refreshAdminEvents()
     } catch (error) {
       setAdminEventsError(adminContentErrorMessage(error))
+    }
+  }
+
+  async function handleToggleRegistrations(event, eventItem) {
+    if (event?.preventDefault) {
+      event.preventDefault()
+    }
+
+    setAdminEventsMessage('')
+    setAdminEventsError('')
+
+    if (!eventItem?.id || eventItem?.contentType === 'Actualité') {
+      setAdminEventsError('Événement introuvable.')
+      return
+    }
+
+    const nextRegistrationsEnabled = !normalizeEventRegistrationsEnabled(eventItem)
+
+    try {
+      const updatedEvent = await updateEvent(
+        eventItem.id,
+        {
+          ...eventItem,
+          registrationsEnabled: nextRegistrationsEnabled,
+        },
+        { silent: true },
+      )
+
+      setEvents((currentEvents) =>
+        currentEvents
+          .map((currentEvent) => {
+            if (currentEvent?.id !== eventItem.id) {
+              return currentEvent
+            }
+
+            return {
+              ...currentEvent,
+              ...updatedEvent,
+              registrationsEnabled: normalizeEventRegistrationsEnabled(updatedEvent),
+            }
+          })
+          .sort(sortAdminContent),
+      )
+
+      if (selectedRegistrantsEvent?.id === eventItem.id) {
+        setSelectedRegistrantsEvent((currentEvent) =>
+          currentEvent
+            ? {
+                ...currentEvent,
+                ...updatedEvent,
+                registrationsEnabled: normalizeEventRegistrationsEnabled(updatedEvent),
+              }
+            : currentEvent,
+        )
+      }
+
+      if (editingEventId === eventItem.id) {
+        setEditingContent((currentContent) =>
+          currentContent
+            ? {
+                ...currentContent,
+                ...updatedEvent,
+                registrationsEnabled: normalizeEventRegistrationsEnabled(updatedEvent),
+              }
+            : currentContent,
+        )
+        setEventForm((currentForm) => ({
+          ...currentForm,
+          registrationsEnabled: normalizeEventRegistrationsEnabled(updatedEvent),
+        }))
+      }
+
+      setAdminEventsMessage(
+        nextRegistrationsEnabled
+          ? 'Les inscriptions à l’événement ont bien été activées.'
+          : 'Les inscriptions à l’événement ont bien été désactivées.',
+      )
+    } catch (error) {
+      setAdminEventsError(
+        error?.message || 'Impossible de mettre à jour les inscriptions de cet événement.',
+      )
     }
   }
 
@@ -1815,6 +1900,16 @@ function AdminEventsPage() {
                             type="button"
                           >
                             Voir les inscrits
+                          </button>
+                        ) : null}
+                        {!isNewsItem ? (
+                          <button
+                            onClick={(event) => handleToggleRegistrations(event, eventItem)}
+                            type="button"
+                          >
+                            {normalizeEventRegistrationsEnabled(eventItem)
+                              ? 'Désactiver'
+                              : 'Activer'}
                           </button>
                         ) : null}
                         <button onClick={() => handleEditEvent(eventItem)} type="button">

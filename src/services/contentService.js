@@ -229,11 +229,22 @@ function timetableImagePayload(image) {
 }
 
 async function selectRows(table, mapper, queryBuilder, successMessage) {
+  return selectRowsWithOptions(table, mapper, queryBuilder, successMessage)
+}
+
+async function selectRowsWithOptions(
+  table,
+  mapper,
+  queryBuilder,
+  successMessage,
+  options = {},
+) {
   if (!ensureSupabaseConfigured()) {
     return EMPTY_ARRAY
   }
 
-  let query = supabase.from(table).select('*')
+  const columns = options.columns || '*'
+  let query = supabase.from(table).select(columns)
   if (queryBuilder) {
     query = queryBuilder(query)
   }
@@ -241,7 +252,12 @@ async function selectRows(table, mapper, queryBuilder, successMessage) {
   const { data, error } = await query
 
   if (error) {
-    alertSupabaseError(`chargement ${table}`, error)
+    if (!options.silent) {
+      alertSupabaseError(`chargement ${table}`, error)
+    }
+    if (options.throwOnError) {
+      throw error
+    }
     return EMPTY_ARRAY
   }
 
@@ -273,7 +289,7 @@ async function insertRow(table, payload, mapper, action, successMessage) {
   return mapper(data)
 }
 
-async function updateRow(table, id, payload, mapper, action) {
+async function updateRow(table, id, payload, mapper, action, options = {}) {
   requireSupabaseConfigured()
 
   const { data, error } = await supabase
@@ -284,7 +300,9 @@ async function updateRow(table, id, payload, mapper, action) {
     .single()
 
   if (error) {
-    alertSupabaseError(action, error)
+    if (!options.silent) {
+      alertSupabaseError(action, error)
+    }
     throw error
   }
 
@@ -337,7 +355,11 @@ export async function getNews() {
 }
 
 export async function getPublishedNews() {
-  return selectRows(
+  return getPublishedNewsPreview()
+}
+
+export async function getPublishedNewsPreview(options) {
+  return selectRowsWithOptions(
     TABLES.news,
     mapNews,
     (query) =>
@@ -346,6 +368,11 @@ export async function getPublishedNews() {
         .in('status', ['published', 'Publiée'])
         .order('published_at', { ascending: false }),
     'Actualités chargées depuis Supabase',
+    {
+      columns:
+        'id,title,description,image_url,published_at,created_at,status,is_published',
+      ...options,
+    },
   )
 }
 
@@ -386,7 +413,11 @@ export async function getEvents() {
 }
 
 export async function getPublishedEvents() {
-  return selectRows(
+  return getPublishedEventsPreview()
+}
+
+export async function getPublishedEventsPreview(options) {
+  return selectRowsWithOptions(
     TABLES.events,
     mapEvent,
     (query) =>
@@ -394,6 +425,11 @@ export async function getPublishedEvents() {
         .eq('is_published', true)
         .order('date', { ascending: true }),
     'Événements chargés depuis Supabase',
+    {
+      columns:
+        'id,title,description,image_url,date,start_time,end_time,location,registrations_enabled,created_at,max_participants,status,is_published',
+      ...options,
+    },
   )
 }
 
@@ -407,13 +443,14 @@ export async function addEvent(eventItem) {
   )
 }
 
-export async function updateEvent(id, eventItem) {
+export async function updateEvent(id, eventItem, options) {
   const updatedEvent = await updateRow(
     TABLES.events,
     id,
     eventPayload(eventItem),
     mapEvent,
     'modification événement',
+    options,
   )
   console.log('Événement modifié dans Supabase')
   return updatedEvent
@@ -439,6 +476,21 @@ export async function getEventRegistrations() {
     mapEventRegistration,
     (query) => query.order('created_at', { ascending: false }),
     'Inscrits événement chargés depuis Supabase',
+  )
+}
+
+export async function getEventRegistrationsSummary(options) {
+  return selectRowsWithOptions(
+    TABLES.eventRegistrations,
+    (row) => ({
+      eventId: row.event_id || '',
+    }),
+    (query) => query.order('created_at', { ascending: false }),
+    'Synthèse inscrits événement chargée depuis Supabase',
+    {
+      columns: 'event_id',
+      ...options,
+    },
   )
 }
 

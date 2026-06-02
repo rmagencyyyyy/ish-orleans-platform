@@ -900,20 +900,28 @@
   display: flex;
   min-height: 380px;
   flex-direction: column;
-  align-items: flex-start;
   border: 1px solid rgba(214, 173, 85, 0.2);
   border-radius: 18px;
-  padding: 26px;
+  overflow: hidden;
   background: #ffffff;
   box-shadow: 0 18px 42px rgba(6, 47, 36, 0.07);
+}
+
+.event-card-media {
+  position: relative;
+  width: 100%;
+  min-height: 200px;
+  background: linear-gradient(180deg, #f3ecdf 0%, #e8dcc5 100%);
+}
+
+.event-card-media-empty {
+  min-height: 112px;
 }
 
 .event-card-image-button {
   display: block;
   width: 100%;
-  margin-top: 18px;
   border: 0;
-  border-radius: 10px;
   padding: 0;
   background: transparent;
   cursor: zoom-in;
@@ -921,14 +929,43 @@
 
 .event-card-image {
   width: 100%;
-  aspect-ratio: 16 / 9;
-  border-radius: 10px;
+  height: 200px;
   object-fit: cover;
+  vertical-align: middle;
 }
 
 .event-card-image-button:focus-visible {
   outline: 3px solid var(--color-gold);
-  outline-offset: 4px;
+  outline-offset: -3px;
+}
+
+.event-card-placeholder {
+  display: flex;
+  min-height: inherit;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  color: #9a7427;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.event-card-badge {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  z-index: 1;
+  margin: 0;
+  box-shadow: 0 10px 20px rgba(6, 47, 36, 0.16);
+}
+
+.event-card-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  width: 100%;
+  padding: 24px 26px 26px;
 }
 
 .event-registration-note {
@@ -941,13 +978,14 @@
 }
 
 .event-card h2 {
-  margin: 18px 0 10px;
+  margin: 0 0 10px;
   color: #143c31;
   font-family: Georgia, "Times New Roman", serif;
   font-size: 1.35rem;
 }
 
 .event-card p {
+  margin: 0;
   color: #61706b;
   line-height: 1.65;
 }
@@ -978,7 +1016,7 @@
   text-align: right;
 }
 
-.event-card button {
+.event-card-body > button {
   width: 100%;
   margin-top: auto;
 }
