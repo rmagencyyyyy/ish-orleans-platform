@@ -273,7 +273,7 @@ async function insertRow(table, payload, mapper, action, successMessage) {
   return mapper(data)
 }
 
-async function updateRow(table, id, payload, mapper, action) {
+async function updateRow(table, id, payload, mapper, action, options = {}) {
   requireSupabaseConfigured()
 
   const { data, error } = await supabase
@@ -284,7 +284,9 @@ async function updateRow(table, id, payload, mapper, action) {
     .single()
 
   if (error) {
-    alertSupabaseError(action, error)
+    if (!options.silent) {
+      alertSupabaseError(action, error)
+    }
     throw error
   }
 
@@ -407,13 +409,14 @@ export async function addEvent(eventItem) {
   )
 }
 
-export async function updateEvent(id, eventItem) {
+export async function updateEvent(id, eventItem, options) {
   const updatedEvent = await updateRow(
     TABLES.events,
     id,
     eventPayload(eventItem),
     mapEvent,
     'modification événement',
+    options,
   )
   console.log('Événement modifié dans Supabase')
   return updatedEvent

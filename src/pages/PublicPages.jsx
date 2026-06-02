@@ -698,7 +698,7 @@ function eventIsFull(eventItem, registrationsCount = 0) {
 }
 
 function eventRegistrationsAreEnabled(eventItem) {
-  return eventItem.registrationsEnabled !== false
+  return eventItem?.registrationsEnabled !== false
 }
 
 function eventIsOpen(eventItem) {
@@ -758,11 +758,13 @@ function EventsPublicPage() {
   }, [])
 
   async function handleEventRegistrationSubmit(event) {
-    event.preventDefault()
+    if (event?.preventDefault) {
+      event.preventDefault()
+    }
     setEventMessage('')
     setEventError('')
 
-    if (!selectedEvent || !eventIsOpen(selectedEvent)) {
+    if (!selectedEvent?.id || !eventIsOpen(selectedEvent)) {
       setEventError('Les inscriptions sont fermées pour cet événement.')
       return
     }
@@ -928,9 +930,13 @@ function EventsPublicPage() {
                 {eventError}
               </div>
             ) : null}
+            {!eventRegistrationsAreEnabled(selectedEvent) ? (
+              <p className="event-registration-note">Inscription non nécessaire</p>
+            ) : null}
             <label className="form-field" htmlFor="event-last-name">
               <span>Nom</span>
               <input
+                disabled={!eventRegistrationsAreEnabled(selectedEvent)}
                 id="event-last-name"
                 onChange={(event) => {
                   const { value } = event.currentTarget
@@ -946,6 +952,7 @@ function EventsPublicPage() {
             <label className="form-field" htmlFor="event-first-name">
               <span>Prénom</span>
               <input
+                disabled={!eventRegistrationsAreEnabled(selectedEvent)}
                 id="event-first-name"
                 onChange={(event) => {
                   const { value } = event.currentTarget
@@ -961,6 +968,7 @@ function EventsPublicPage() {
             <label className="form-field" htmlFor="event-age">
               <span>Âge</span>
               <input
+                disabled={!eventRegistrationsAreEnabled(selectedEvent)}
                 id="event-age"
                 min="0"
                 onChange={(event) => {
@@ -974,7 +982,11 @@ function EventsPublicPage() {
                 value={eventForm.age}
               />
             </label>
-            <button className="btn btn-primary submit-btn" type="submit">
+            <button
+              className="btn btn-primary submit-btn"
+              disabled={!eventRegistrationsAreEnabled(selectedEvent)}
+              type="submit"
+            >
               Valider mon inscription
             </button>
           </form>
