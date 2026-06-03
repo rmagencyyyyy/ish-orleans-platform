@@ -128,11 +128,12 @@ function Inscription() {
       <div className="inscription-heading">
         <div>
           <div className="section-kicker">Inscription</div>
-          <h2>Demande de contact</h2>
+          <h2>Recevoir le lien de pré-inscription</h2>
         </div>
         <p>
-          Laissez vos coordonnées et l’équipe ISH Orléans vous recontactera
-          pour la suite.
+          Renseignez vos coordonnées ci-dessous afin de recevoir par email le
+          lien officiel de pré-inscription de l’ISH Orléans. Veuillez vérifier
+          votre boîte de réception ainsi que vos courriers indésirables.
         </p>
       </div>
 
