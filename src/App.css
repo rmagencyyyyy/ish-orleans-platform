@@ -914,17 +914,23 @@
   background: linear-gradient(180deg, #f3ecdf 0%, #e8dcc5 100%);
 }
 
+.event-card-clickable {
+  cursor: zoom-in;
+}
+
 .event-card-media-empty {
   min-height: 112px;
 }
 
 .event-card-image-button {
+  position: relative;
   display: block;
   width: 100%;
   border: 0;
   padding: 0;
   background: transparent;
   cursor: zoom-in;
+  overflow: hidden;
 }
 
 .event-card-image {
@@ -937,6 +943,50 @@
 .event-card-image-button:focus-visible {
   outline: 3px solid var(--color-gold);
   outline-offset: -3px;
+}
+
+.event-card-clickable:focus-visible {
+  outline: 3px solid var(--color-gold);
+  outline-offset: 4px;
+}
+
+.event-card-image-hint {
+  position: absolute;
+  right: 14px;
+  bottom: 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border-radius: 999px;
+  padding: 8px 12px;
+  color: #ffffff;
+  background: rgba(6, 47, 36, 0.72);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.18);
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  opacity: 0.96;
+  transition:
+    transform 0.2s ease,
+    background 0.2s ease,
+    opacity 0.2s ease;
+}
+
+.event-card-image-hint-icon {
+  display: inline-grid;
+  width: 22px;
+  height: 22px;
+  place-items: center;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.16);
+  font-size: 0.9rem;
+  line-height: 1;
+}
+
+.event-card:hover .event-card-image-hint,
+.event-card:focus-within .event-card-image-hint {
+  transform: translateY(-1px);
+  background: rgba(6, 47, 36, 0.82);
 }
 
 .event-card-placeholder {

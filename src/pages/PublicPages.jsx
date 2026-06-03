@@ -76,7 +76,6 @@ function Formations() {
             </div>
             <h3>{formation.title}</h3>
             <p>{formation.description}</p>
-            <Link to="/contact">En savoir plus</Link>
           </article>
         ))}
       </div>
@@ -416,7 +415,6 @@ function HomePrograms() {
               <span>{program.badge || program.ageRange}</span>
               <h3>{program.title}</h3>
               <p>{program.text || program.description}</p>
-              <Link to="/formations">En savoir plus →</Link>
             </article>
           ))}
         </div>
@@ -562,7 +560,6 @@ function FormationsPage() {
               </div>
               <h3>{program.title}</h3>
               <p>{program.description || program.text}</p>
-              <Link to="/contact">En savoir plus</Link>
             </article>
           ))}
         </div>
@@ -714,6 +711,18 @@ function eventStatusLabel(status) {
   return labels[status] || status || '-'
 }
 
+function openContentImage(setter, eventItem) {
+  if (!eventItem?.imageUrl) {
+    return
+  }
+
+  setter({
+    title: eventItem.title,
+    imageUrl: eventItem.imageUrl,
+    type: eventItem.contentType === 'Actualité' ? 'Actualité' : 'Événement',
+  })
+}
+
 function EventsPublicPage() {
   const [events, setEvents] = useState([])
   const [eventRegistrationCounts, setEventRegistrationCounts] = useState({})
@@ -857,7 +866,39 @@ function EventsPublicPage() {
             const cardBadgeLabel = isNewsItem ? 'Actualité' : eventStatusLabel(eventItem.status)
 
             return (
-              <article className="event-card" key={eventItem.id}>
+              <article
+                className={`event-card ${eventItem.imageUrl ? 'event-card-clickable' : ''}`}
+                key={eventItem.id}
+                onClick={(event) => {
+                  if (!eventItem.imageUrl) {
+                    return
+                  }
+
+                  if (event.target.closest('button, a, input, textarea, select, label, form')) {
+                    return
+                  }
+
+                  openContentImage(setSelectedContentImage, eventItem)
+                }}
+                onKeyDown={(event) => {
+                  if (!eventItem.imageUrl) {
+                    return
+                  }
+
+                  if (event.key !== 'Enter' && event.key !== ' ') {
+                    return
+                  }
+
+                  if (event.target.closest('button, a, input, textarea, select, label, form')) {
+                    return
+                  }
+
+                  event.preventDefault()
+                  openContentImage(setSelectedContentImage, eventItem)
+                }}
+                role={eventItem.imageUrl ? 'button' : undefined}
+                tabIndex={eventItem.imageUrl ? 0 : undefined}
+              >
                 <div className={`event-card-media ${eventItem.imageUrl ? '' : 'event-card-media-empty'}`}>
                   <span className={`status-pill ${isClosed ? 'refusee' : 'validee'} event-card-badge`}>
                     {cardBadgeLabel}
@@ -866,13 +907,7 @@ function EventsPublicPage() {
                     <button
                       aria-label={`Afficher l’image : ${eventItem.title}`}
                       className="event-card-image-button"
-                      onClick={() =>
-                        setSelectedContentImage({
-                          title: eventItem.title,
-                          imageUrl: eventItem.imageUrl,
-                          type: isNewsItem ? 'Actualité' : 'Événement',
-                        })
-                      }
+                      onClick={() => openContentImage(setSelectedContentImage, eventItem)}
                       type="button"
                     >
                       <img
@@ -883,6 +918,10 @@ function EventsPublicPage() {
                         sizes="(max-width: 900px) 100vw, (max-width: 1200px) 50vw, 33vw"
                         src={eventItem.imageUrl}
                       />
+                      <span aria-hidden="true" className="event-card-image-hint">
+                        <span className="event-card-image-hint-icon">⌕</span>
+                        Cliquer pour agrandir
+                      </span>
                     </button>
                   ) : (
                     <div aria-hidden="true" className="event-card-placeholder">

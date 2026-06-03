@@ -78,6 +78,7 @@ const emptyEventForm = {
   endTime: '',
   location: '',
   maxParticipants: '',
+  registrationsEnabled: true,
   status: 'Ouvert',
 }
 const galleryCategories = ['Institut', 'Événement', 'Cours', 'Activité', 'Autre']

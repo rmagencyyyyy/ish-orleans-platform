@@ -1058,18 +1058,42 @@ function TeacherStudentDetails() {
       <div className="modal-section-grid">
         <section className="detail-block"><h3>Informations élève</h3><dl>{personalFields.slice(0, 14).map((field) => <div key={field}><dt>{field}</dt><dd>{info[field] || '-'}</dd></div>)}</dl></section>
         <section className="detail-block"><h3>Ajouter une note</h3><form className="teacher-mini-form" onSubmit={handleNoteSubmit}>
-          <input placeholder="Titre" value={noteForm.title} onChange={(event) => setNoteForm((current) => ({ ...current, title: event.currentTarget.value }))} />
-          <input placeholder="Note obtenue" value={noteForm.score} onChange={(event) => setNoteForm((current) => ({ ...current, score: event.currentTarget.value }))} />
-          <input placeholder="Note maximale" value={noteForm.maxScore} onChange={(event) => setNoteForm((current) => ({ ...current, maxScore: event.currentTarget.value }))} />
-          <input type="date" value={noteForm.date} onChange={(event) => setNoteForm((current) => ({ ...current, date: event.currentTarget.value }))} />
-          <textarea placeholder="Appréciation" value={noteForm.appreciation} onChange={(event) => setNoteForm((current) => ({ ...current, appreciation: event.currentTarget.value }))} />
+          <input placeholder="Titre" value={noteForm.title} onChange={(event) => {
+            const { value } = event.currentTarget
+            setNoteForm((current) => ({ ...current, title: value }))
+          }} />
+          <input placeholder="Note obtenue" value={noteForm.score} onChange={(event) => {
+            const { value } = event.currentTarget
+            setNoteForm((current) => ({ ...current, score: value }))
+          }} />
+          <input placeholder="Note maximale" value={noteForm.maxScore} onChange={(event) => {
+            const { value } = event.currentTarget
+            setNoteForm((current) => ({ ...current, maxScore: value }))
+          }} />
+          <input type="date" value={noteForm.date} onChange={(event) => {
+            const { value } = event.currentTarget
+            setNoteForm((current) => ({ ...current, date: value }))
+          }} />
+          <textarea placeholder="Appréciation" value={noteForm.appreciation} onChange={(event) => {
+            const { value } = event.currentTarget
+            setNoteForm((current) => ({ ...current, appreciation: value }))
+          }} />
           <button className="btn btn-primary submit-btn" type="submit">Ajouter la note</button>
         </form></section>
       </div>
       <section className="detail-block"><h3>Présence</h3><form className="teacher-mini-form" onSubmit={handleAttendanceSubmit}>
-        <input type="date" value={attendanceForm.date} onChange={(event) => setAttendanceForm((current) => ({ ...current, date: event.currentTarget.value }))} />
-        <select value={attendanceForm.status} onChange={(event) => setAttendanceForm((current) => ({ ...current, status: event.currentTarget.value }))}><option>Présent</option><option>Absent</option><option>Retard</option></select>
-        <input placeholder="Commentaire" value={attendanceForm.comment} onChange={(event) => setAttendanceForm((current) => ({ ...current, comment: event.currentTarget.value }))} />
+        <input type="date" value={attendanceForm.date} onChange={(event) => {
+          const { value } = event.currentTarget
+          setAttendanceForm((current) => ({ ...current, date: value }))
+        }} />
+        <select value={attendanceForm.status} onChange={(event) => {
+          const { value } = event.currentTarget
+          setAttendanceForm((current) => ({ ...current, status: value }))
+        }}><option>Présent</option><option>Absent</option><option>Retard</option></select>
+        <input placeholder="Commentaire" value={attendanceForm.comment} onChange={(event) => {
+          const { value } = event.currentTarget
+          setAttendanceForm((current) => ({ ...current, comment: value }))
+        }} />
         <button className="btn btn-primary submit-btn" type="submit">Ajouter la présence</button>
       </form></section>
       <section className="detail-block"><h3>Historique des notes</h3>{notes.map((note) => <p key={note.id}><strong>{note.title}</strong> · {note.score}/{note.maxScore} · {note.date} <button onClick={() => { const appreciation = prompt('Nouvelle appréciation', note.appreciation); if (appreciation !== null) { updateStudentNote(note.id, { appreciation }); refreshStudentTracking() } }} type="button">Modifier</button> <button onClick={() => { deleteStudentNote(note.id); refreshStudentTracking() }} type="button">Supprimer</button></p>)}</section>
@@ -1352,6 +1376,10 @@ function normalizeEventRegistrationsEnabled(eventItem) {
   return eventItem?.registrationsEnabled !== false
 }
 
+function registrationSelectValue(value) {
+  return normalizeEventRegistrationsEnabled({ registrationsEnabled: value }) ? 'true' : 'false'
+}
+
 function AdminEventsPage() {
   const [searchParams] = useSearchParams()
   const requestedType = searchParams.get('type')
@@ -1389,9 +1417,17 @@ function AdminEventsPage() {
       }),
     )
 
-    setEvents([...newsItems, ...eventItems].sort(sortAdminContent))
+    const mergedEvents = [...newsItems, ...eventItems].sort(sortAdminContent)
+
+    setEvents(mergedEvents)
     setEventRegistrations(registrations)
     setEventRegistrationCounts(counts)
+
+    return {
+      counts,
+      events: mergedEvents,
+      registrations,
+    }
   }
 
   useEffect(() => {
@@ -1406,11 +1442,25 @@ function AdminEventsPage() {
         return {
           ...current,
           contentType: value,
+          registrationsEnabled:
+            value === 'Actualité'
+              ? false
+              : normalizeEventRegistrationsEnabled(current),
         }
       }
 
       return { ...current, [name]: value }
     })
+  }
+
+  function handleRegistrationsEnabledChange(event) {
+    const nextValue = event.currentTarget.value === 'true'
+
+    setAdminEventsError('')
+    setEventForm((current) => ({
+      ...current,
+      registrationsEnabled: nextValue,
+    }))
   }
 
   async function handleEventImageUpload(event) {
@@ -1481,7 +1531,7 @@ function AdminEventsPage() {
       endTime: eventItem.endTime || '',
       location: eventItem.location || '',
       maxParticipants: String(eventItem.maxParticipants || ''),
-      registrationsEnabled: eventItem.registrationsEnabled !== false,
+      registrationsEnabled: normalizeEventRegistrationsEnabled(eventItem),
       status: 'published',
       isPublished: true,
       isPriority: false,
@@ -1582,7 +1632,7 @@ function AdminEventsPage() {
     const nextRegistrationsEnabled = !normalizeEventRegistrationsEnabled(eventItem)
 
     try {
-      const updatedEvent = await updateEvent(
+      await updateEvent(
         eventItem.id,
         {
           ...eventItem,
@@ -1591,47 +1641,20 @@ function AdminEventsPage() {
         { silent: true },
       )
 
-      setEvents((currentEvents) =>
-        currentEvents
-          .map((currentEvent) => {
-            if (currentEvent?.id !== eventItem.id) {
-              return currentEvent
-            }
-
-            return {
-              ...currentEvent,
-              ...updatedEvent,
-              registrationsEnabled: normalizeEventRegistrationsEnabled(updatedEvent),
-            }
-          })
-          .sort(sortAdminContent),
+      const refreshedContent = await refreshAdminEvents()
+      const refreshedEvent = refreshedContent.events.find(
+        (currentEvent) => currentEvent?.id === eventItem.id,
       )
 
-      if (selectedRegistrantsEvent?.id === eventItem.id) {
-        setSelectedRegistrantsEvent((currentEvent) =>
-          currentEvent
-            ? {
-                ...currentEvent,
-                ...updatedEvent,
-                registrationsEnabled: normalizeEventRegistrationsEnabled(updatedEvent),
-              }
-            : currentEvent,
-        )
+      if (selectedRegistrantsEvent?.id === eventItem.id && refreshedEvent) {
+        setSelectedRegistrantsEvent(refreshedEvent)
       }
 
-      if (editingEventId === eventItem.id) {
-        setEditingContent((currentContent) =>
-          currentContent
-            ? {
-                ...currentContent,
-                ...updatedEvent,
-                registrationsEnabled: normalizeEventRegistrationsEnabled(updatedEvent),
-              }
-            : currentContent,
-        )
+      if (editingEventId === eventItem.id && refreshedEvent) {
+        setEditingContent(refreshedEvent)
         setEventForm((currentForm) => ({
           ...currentForm,
-          registrationsEnabled: normalizeEventRegistrationsEnabled(updatedEvent),
+          registrationsEnabled: normalizeEventRegistrationsEnabled(refreshedEvent),
         }))
       }
 
@@ -1800,14 +1823,9 @@ function AdminEventsPage() {
             <span>Inscriptions à l’événement</span>
             <select
               id="event-registrations-admin"
-              onChange={(event) => {
-                setAdminEventsError('')
-                setEventForm((current) => ({
-                  ...current,
-                  registrationsEnabled: event.currentTarget.value === 'true',
-                }))
-              }}
-              value={String(eventForm.registrationsEnabled !== false)}
+              name="registrationsEnabled"
+              onChange={handleRegistrationsEnabledChange}
+              value={registrationSelectValue(eventForm.registrationsEnabled)}
             >
               <option value="true">Activées</option>
               <option value="false">Désactivées</option>
@@ -2062,14 +2080,9 @@ function AdminEventsPage() {
                   <label className="form-field">
                     <span>Inscriptions à l’événement</span>
                     <select
-                      onChange={(event) => {
-                        setAdminEventsError('')
-                        setEventForm((current) => ({
-                          ...current,
-                          registrationsEnabled: event.currentTarget.value === 'true',
-                        }))
-                      }}
-                      value={String(eventForm.registrationsEnabled !== false)}
+                      name="registrationsEnabled"
+                      onChange={handleRegistrationsEnabledChange}
+                      value={registrationSelectValue(eventForm.registrationsEnabled)}
                     >
                       <option value="true">Activées</option>
                       <option value="false">Désactivées</option>
@@ -2246,12 +2259,13 @@ function AdminGalleryPage() {
             <select
               id="gallery-status"
               name="isPublished"
-              onChange={(event) =>
+              onChange={(event) => {
+                const nextValue = event.currentTarget.value === 'true'
                 setGalleryForm((current) => ({
                   ...current,
-                  isPublished: event.currentTarget.value === 'true',
+                  isPublished: nextValue,
                 }))
-              }
+              }}
               value={String(galleryForm.isPublished)}
             >
               <option value="true">Publiée</option>
@@ -2536,12 +2550,13 @@ function AdminProgramsPage() {
             <span>Publié</span>
             <select
               name="isPublished"
-              onChange={(event) =>
+              onChange={(event) => {
+                const nextValue = event.currentTarget.value === 'true'
                 setProgramForm((current) => ({
                   ...current,
-                  isPublished: event.currentTarget.value === 'true',
+                  isPublished: nextValue,
                 }))
-              }
+              }}
               value={String(programForm.isPublished)}
             >
               <option value="true">true</option>
@@ -2777,12 +2792,13 @@ function AdminTimetablePage() {
             <span>Statut</span>
             <select
               name="isPublished"
-              onChange={(event) =>
+              onChange={(event) => {
+                const nextValue = event.currentTarget.value === 'true'
                 setImageForm((current) => ({
                   ...current,
-                  isPublished: event.currentTarget.value === 'true',
+                  isPublished: nextValue,
                 }))
-              }
+              }}
               value={String(imageForm.isPublished)}
             >
               <option value="true">Publié</option>
