@@ -1632,7 +1632,7 @@ function AdminEventsPage() {
     const nextRegistrationsEnabled = !normalizeEventRegistrationsEnabled(eventItem)
 
     try {
-      await updateEvent(
+      const updatedEvent = await updateEvent(
         eventItem.id,
         {
           ...eventItem,
@@ -1641,20 +1641,47 @@ function AdminEventsPage() {
         { silent: true },
       )
 
-      const refreshedContent = await refreshAdminEvents()
-      const refreshedEvent = refreshedContent.events.find(
-        (currentEvent) => currentEvent?.id === eventItem.id,
+      setEvents((currentEvents) =>
+        currentEvents
+          .map((currentEvent) => {
+            if (currentEvent?.id !== eventItem.id) {
+              return currentEvent
+            }
+
+            return {
+              ...currentEvent,
+              ...updatedEvent,
+              registrationsEnabled: normalizeEventRegistrationsEnabled(updatedEvent),
+            }
+          })
+          .sort(sortAdminContent),
       )
 
-      if (selectedRegistrantsEvent?.id === eventItem.id && refreshedEvent) {
-        setSelectedRegistrantsEvent(refreshedEvent)
+      if (selectedRegistrantsEvent?.id === eventItem.id) {
+        setSelectedRegistrantsEvent((currentEvent) =>
+          currentEvent
+            ? {
+                ...currentEvent,
+                ...updatedEvent,
+                registrationsEnabled: normalizeEventRegistrationsEnabled(updatedEvent),
+              }
+            : currentEvent,
+        )
       }
 
-      if (editingEventId === eventItem.id && refreshedEvent) {
-        setEditingContent(refreshedEvent)
+      if (editingEventId === eventItem.id) {
+        setEditingContent((currentContent) =>
+          currentContent
+            ? {
+                ...currentContent,
+                ...updatedEvent,
+                registrationsEnabled: normalizeEventRegistrationsEnabled(updatedEvent),
+              }
+            : currentContent,
+        )
         setEventForm((currentForm) => ({
           ...currentForm,
-          registrationsEnabled: normalizeEventRegistrationsEnabled(refreshedEvent),
+          registrationsEnabled: normalizeEventRegistrationsEnabled(updatedEvent),
         }))
       }
 
