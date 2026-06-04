@@ -133,7 +133,8 @@ function Inscription() {
         <p>
           Renseignez vos coordonnées ci-dessous afin de recevoir par email le
           lien officiel de pré-inscription de l’ISH Orléans. Veuillez vérifier
-          votre boîte de réception ainsi que vos courriers indésirables.
+          votre boîte de réception ainsi que vos courriers indésirables
+          (spam).
         </p>
       </div>
 
