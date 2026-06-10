@@ -20,6 +20,20 @@ const DEFAULT_ADMIN = {
   isActive: true,
 }
 
+const ISH_ORLEANS_ADMIN = {
+  id: 'ish_orleans_admin',
+  firstName: 'Admin',
+  lastName: 'ISH Orléans',
+  email: 'ishorleans@gmail.com',
+  password: '2sh_0rleans!!',
+  role: 'admin',
+  assignedClassIds: [],
+  createdAt: '2026-06-10T00:00:00.000Z',
+  isActive: true,
+}
+
+const DEFAULT_USERS = [ISH_ORLEANS_ADMIN, DEFAULT_ADMIN]
+
 const DEFAULT_SETTINGS = {
   schoolYear: '2025 / 2026',
   registrationOpen: true,
@@ -692,7 +706,39 @@ export function addUser(userData) {
 
 export function getUsers() {
   const users = readCollection(STORAGE_KEYS.users)
-  return users.length > 0 ? users : [DEFAULT_ADMIN]
+  if (users.length === 0) {
+    return DEFAULT_USERS
+  }
+
+  let usersChanged = false
+  const nextUsers = users.map((user) => {
+    if (user.email.toLowerCase() !== ISH_ORLEANS_ADMIN.email.toLowerCase()) {
+      return user
+    }
+
+    usersChanged = true
+    return {
+      ...user,
+      ...ISH_ORLEANS_ADMIN,
+      id: user.id || ISH_ORLEANS_ADMIN.id,
+      createdAt: user.createdAt || ISH_ORLEANS_ADMIN.createdAt,
+    }
+  })
+
+  const missingDefaultUsers = DEFAULT_USERS.filter((defaultUser) => {
+    return !nextUsers.some((user) => user.email.toLowerCase() === defaultUser.email.toLowerCase())
+  })
+
+  if (missingDefaultUsers.length === 0) {
+    if (usersChanged) {
+      writeCollection(STORAGE_KEYS.users, nextUsers)
+    }
+    return nextUsers
+  }
+
+  const seededUsers = [...missingDefaultUsers, ...nextUsers]
+  writeCollection(STORAGE_KEYS.users, seededUsers)
+  return seededUsers
 }
 
 export function getUserById(id) {
@@ -708,7 +754,7 @@ export function getUserByEmail(email) {
 
 export function updateUser(id, userData) {
   const existingUsers = readCollection(STORAGE_KEYS.users)
-  const users = existingUsers.length > 0 ? existingUsers : [DEFAULT_ADMIN]
+  const users = existingUsers.length > 0 ? existingUsers : DEFAULT_USERS
   let updatedUser = null
   const nextUsers = users.map((user) => {
     if (user.id !== id) {
