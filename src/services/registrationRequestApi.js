@@ -1,19 +1,5 @@
-const registrationRequestApiUrl = import.meta.env.VITE_REGISTRATION_REQUEST_API_URL
-const registrationRequestApiToken = import.meta.env.VITE_REGISTRATION_REQUEST_API_TOKEN
-
 export async function sendEnrollmentLink(email, firstName, lastName) {
-  if (!registrationRequestApiUrl) {
-    throw new Error('URL API manquante pour l’envoi de la demande.')
-  }
-
-  if (!registrationRequestApiToken) {
-    throw new Error('Token API manquant pour l’envoi de la demande.')
-  }
-
-  const requestUrl = new URL(registrationRequestApiUrl)
-  requestUrl.searchParams.set('systemToken', registrationRequestApiToken)
-
-  const response = await fetch(requestUrl, {
+  const response = await fetch('/api/registration-request', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -22,7 +8,7 @@ export async function sendEnrollmentLink(email, firstName, lastName) {
   })
 
   if (!response.ok) {
-    let errorMessage = 'Failed to send enrollment link'
+    let errorMessage = 'Impossible d’envoyer le lien de pré-inscription.'
 
     try {
       const error = await response.json()
