@@ -44,12 +44,12 @@ export default async function handler(request, response) {
   }
 
   try {
-    const requestUrl = new URL(apiUrl)
-    requestUrl.searchParams.set('systemToken', apiToken)
-
-    const upstreamResponse = await fetch(requestUrl, {
+    const upstreamResponse = await fetch(apiUrl, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'X-System-Token': apiToken.trim(),
+      },
       body: JSON.stringify({
         email: email.trim(),
         firstName: firstName.trim(),
@@ -73,7 +73,9 @@ export default async function handler(request, response) {
       return sendJson(response, upstreamResponse.status, {
         message:
           responseBody.message ||
-          'Impossible d’envoyer le lien de pré-inscription.',
+          (upstreamResponse.status === 403
+            ? 'Le service de pré-inscription refuse le token configuré.'
+            : 'Impossible d’envoyer le lien de pré-inscription.'),
       })
     }
 

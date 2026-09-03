@@ -18,11 +18,10 @@ export default defineConfig(({ mode }) => {
             '/api/registration-request': {
               target: new URL(registrationApiUrl).origin,
               changeOrigin: true,
-              rewrite: () => {
-                const requestUrl = new URL(registrationApiUrl)
-                requestUrl.searchParams.set('systemToken', registrationApiToken)
-                return `${requestUrl.pathname}${requestUrl.search}`
+              headers: {
+                'X-System-Token': registrationApiToken.trim(),
               },
+              rewrite: () => new URL(registrationApiUrl).pathname,
             },
           },
         }
